@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // A member is a signed-in person with a confirmed email whose email is a document in /members.
+    function memberPath() { return /databases/$(database)/documents/members/$(request.auth.token.email); }
+    function isMember() { return request.auth != null && request.auth.token.email_verified == true && exists(memberPath()); }
+    function isAdmin() { return isMember() && get(memberPath()).data.role == 'admin'; }
+
+    match /members/{email} { allow read: if isMember(); allow write: if isAdmin(); }
+    match /cfg/{doc}       { allow read: if isMember(); allow write: if isAdmin(); }
+    match /master/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
+    match /forecast/{doc}  { allow read: if isMember(); allow write: if isAdmin(); }
+    match /direct/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
+    match /stock/{doc}     { allow read: if isMember(); allow write: if isAdmin(); }
+    match /sale/{doc}      { allow read: if isMember(); allow write: if isAdmin(); }
+    match /po/{doc}        { allow read: if isMember(); allow write: if isAdmin(); }
+    match /meta/{doc}      { allow read: if isMember(); allow write: if isAdmin(); }
+    match /history/{day}   { allow read: if isMember(); allow write: if isAdmin(); }
+    match /podate/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
+    match /factory/{doc}   { allow read: if isMember(); allow write: if isAdmin(); }
+    match /dispatch/{doc}  { allow read: if isMember(); allow write: if isAdmin(); }
+    match /fg/{doc}        { allow read: if isMember(); allow write: if isAdmin(); }
+    match /ecomplan/{doc}  { allow read: if isMember(); allow write: if isAdmin(); }
+    match /dplan/{doc}     { allow read: if isMember(); allow write: if isAdmin(); }
+    match /ecomsku/{doc}   { allow read: if isMember(); allow write: if isAdmin(); }
+    match /hsale/{doc}     { allow read: if isMember(); allow write: if isAdmin(); }
+    match /fcarch/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
+    match /mail/{doc}      { allow read: if isMember(); allow write: if isAdmin(); }
+    match /ownerset/{doc}  { allow read: if isMember(); allow write: if isAdmin(); }
+    // each person writes only their own sign-in and upload record
+    match /activity/{email} { allow read: if isMember(); allow write: if isMember() && email == request.auth.token.email.lower(); }
+  }
+}
