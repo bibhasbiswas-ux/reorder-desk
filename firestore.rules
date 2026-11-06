@@ -27,6 +27,9 @@ service cloud.firestore {
     match /fcarch/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
     match /mail/{doc}      { allow read: if isMember(); allow write: if isAdmin(); }
     match /ownerset/{doc}  { allow read: if isMember(); allow write: if isAdmin(); }
+    match /dstock/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
+    match /mtloss/{doc}    { allow read: if isMember(); allow write: if isAdmin(); }
+    match /lsale/{doc}     { allow read: if isMember(); allow write: if isAdmin(); }
     // each person writes only their own sign-in and upload record
     match /activity/{email} { allow read: if isMember(); allow write: if isMember() && email == request.auth.token.email.lower(); }
   }

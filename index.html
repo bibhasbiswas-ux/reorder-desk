@@ -55,9 +55,30 @@ button,input,select{font:inherit;color:inherit}
 .sum .c dd{color:var(--crit)}
 @media (max-width:640px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.sum div:nth-child(3){border-left:0}.sum div:nth-child(n+3){border-top:1px solid var(--line)}.sum dd{font-size:21px}}
 
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
-.tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:9px 14px;font:600 15px var(--display);color:var(--muted);cursor:pointer;white-space:nowrap}
-.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+@media (min-width:760px){.tabs{flex-wrap:wrap;overflow:visible}.tabs button{padding:10px 9px}}
+.tabs button{display:inline-flex;align-items:center;gap:7px;background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px;font:600 14.5px var(--display);color:var(--muted);cursor:pointer;white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button svg{width:18px;height:18px;flex:none}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.ico{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.brand{display:flex;gap:14px;align-items:center;min-width:0}
+.logo{width:46px;height:46px;flex:none;border-radius:12px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.logo svg{width:26px;height:26px}
+.org{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.hello{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px;margin-bottom:14px}
+.hello h2{font-size:22px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;cursor:pointer;color:var(--ink);font:inherit;transition:border-color .15s,box-shadow .15s,transform .15s;min-height:168px}
+.tile:hover{border-color:var(--accent);box-shadow:0 6px 18px rgba(13,40,34,.10);transform:translateY(-2px)}
+.tile .ic{width:46px;height:46px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
+.tile .ic svg{width:25px;height:25px}
+.tile h3{font-size:16.5px}
+.tile p{color:var(--muted);font-size:13px;line-height:1.4}
+.tile .ts{margin-top:auto;font-size:12.5px;font-weight:600;color:var(--ink);display:flex;gap:6px;align-items:center}
+.tile .ts .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.tile .ts .dot.ok{background:var(--ok)}.tile .ts .dot.warn{background:var(--warn)}
+@media (max-width:520px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile{padding:14px;min-height:150px}.tile p{display:none}}
 .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .bar .grow{flex:1 1 180px;min-width:0}
 .btn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:7px 12px;font-weight:500;cursor:pointer;white-space:nowrap}
@@ -163,9 +184,8 @@ textarea{width:100%;min-height:200px;font:12.5px var(--mono);background:var(--su
 <body>
 <div class="wrap">
   <div class="head">
-    <div>
-      <h1>Reorder Desk</h1>
-      <p class="sub">Upload forecast, stock, sales and open POs. The master file and the order for every depot are worked out for you.</p>
+    <div class="brand"><div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" class="ico"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg></div>
+      <div><p class="org">Universal Corporation Ltd · SCM Planning</p><h1>Reorder Desk</h1></div>
     </div>
     <div class="who" id="who"></div>
   </div>
@@ -198,7 +218,9 @@ const Core=(()=>{
   const defaults=()=>({workDays:26,depots:DEPOTS.map(([name,safety,transit,freq])=>({id:key(name),name,safety,transit,freq})),
     fcCh:["GT","GT-Agaro","AVT","MT","MnCC","Ecom","Retail","FK-Minutes"],saleCh:["GT","AVT","MT","MnCC","Ecom"],poCh:["Ecom","MT"]});
   const KINDS={items:{label:"Item master",daily:false},forecast:{label:"Channel-wise forecast",daily:false,ch:"fcCh"},direct:{label:"Direct sale forecast",daily:false,ch:"fcCh"},stock:{label:"Daily stock",daily:true},
-    sale:{label:"MTD sale",daily:true,ch:"saleCh"},po:{label:"Open PO",daily:true,ch:"poCh"},factory:{label:"Factory order",daily:false},dispatch:{label:"Factory dispatch",daily:true},fg:{label:"Factory FG",daily:true},ecomplan:{label:"Ecom direct factory plan",daily:true},dplan:{label:"Factory direct plan",daily:true},ecomsku:{label:"Ecom SKU list",daily:false},hsale:{label:"Sales history",daily:false,ch:"saleCh"},fcarch:{label:"Past forecast (for accuracy)",daily:false,ch:"fcCh"}};
+    sale:{label:"MTD sale",daily:true,ch:"saleCh"},po:{label:"Open PO",daily:true,ch:"poCh"},factory:{label:"Factory order",daily:false},dispatch:{label:"Factory dispatch",daily:true},fg:{label:"Factory FG",daily:true},ecomplan:{label:"Ecom direct factory plan",daily:true},dplan:{label:"Factory direct plan",daily:true},ecomsku:{label:"Ecom SKU list",daily:false},hsale:{label:"Sales history",daily:false,ch:"saleCh"},fcarch:{label:"Past forecast (for accuracy)",daily:false,ch:"fcCh"},
+    dstock:{label:"Date-wise stock (sale loss)",daily:false},mtloss:{label:"MT loss qty (date-wise)",daily:false},lsale:{label:"MT sale for sale loss (optional)",daily:false,ch:"saleCh"},mdmap:{label:"Mother depot list",daily:false}};
+  const LOSS_LOCS=["Bangalore","Ahmedabad","Bhiwandi","Mandideep2","Pune","Chennai2","Chennai3","Coimbatore","Cochin","Ghaziabad","Gurgaon","Jaipur","Lucknow","Ludhiana","Mundka","Hyderabad","Guwahati","Kolkata","Patna","UCL_Orissa"];
   const STOCKF=["Physical","Transit","Reserved"];
   const STOCK_SYN={physical:0,phy:0,phystock:0,actualphy:0,physicalstock:0,stock:0,transit:1,transitstock:1,intransit:1,reserved:2,reserve:2,reservedstock:2,reservestock:2,stockreservedforsale:2};
   const FG_KEYS=new Set(["plantfg","myrafg","fg","fgstock","plantstock","myraphplfg","plantfgstock"]);
@@ -281,12 +303,58 @@ const Core=(()=>{
       if(dated&&dtc>=0&&key(field)==="ecom"){const d=isoDate(row[dtc]);dated.add(code,dep,d||"nodate",num(row[qc]));if(!d)dated.noDate++}}
     if(dated&&dtc>=0&&rows)dated.hasDate=true;
     return rows}
+  /* ---------- sale loss files: location names are kept as written in the files ---------- */
+  function findHead(grid,need){for(let r=0;r<Math.min(grid.length,25);r++){const ks=(grid[r]||[]).map(key),at={};let ok=true;
+      for(const [n,keys] of Object.entries(need)){const i=ks.findIndex(k=>keys.includes(k));if(i<0){ok=false;break}at[n]=i}if(ok)return {r,ks,at}}return null}
+  const LCODE=["finalcode","icode","itemcode","itemnumber","itemno","code","sku"],LNAME=new Set(["finalname","finalitemname","itemname","productname","name","description","itemdescription"]);
+  /* rows = dates, columns = locations: Date | Final Code | Final Name | Bangalore | Ahmedabad ... (pcs) */
+  function parseDStock(sheets){for(const s of sheets){const g=s.grid,h=findHead(g,{date:["date","stockdate","asondate"],code:LCODE});if(!h)continue;
+      const hdr=g[h.r],cols=[];for(let c=0;c<hdr.length;c++){if(c===h.at.date||c===h.at.code)continue;const raw=String(hdr[c]??"").replace(/\s+/g," ").trim();if(!raw||LNAME.has(key(raw)))continue;cols.push({c,loc:raw})}
+      if(!cols.length)return {error:"No location columns were found after Date, Final Code and Final Name."};
+      const by=new Map(),codes=new Set();let rows=0,bad=0;
+      for(let r=h.r+1;r<g.length;r++){const row=g[r]||[],code=String(row[h.at.code]??"").trim();if(!code)continue;const d=isoDate(row[h.at.date]);if(!d){bad++;continue}rows++;codes.add(code);
+        let D=by.get(d);if(!D)by.set(d,D={codes:[],cp:new Map(),r:[]});let ci=D.cp.get(code);if(ci==null){ci=D.codes.length;D.cp.set(code,ci);D.codes.push(code)}
+        cols.forEach((x,li)=>{const q=num(row[x.c]);if(q)D.r.push(ci,li,+q.toFixed(3))})}
+      const dates=[...by.keys()].sort(),byDate=new Map();dates.forEach(d=>{const D=by.get(d);byDate.set(d,{codes:D.codes,r:D.r})});
+      return {kind:"dstock",locs:cols.map(x=>x.loc),dates,byDate,n:codes.size,rows,badDates:bad,depots:new Map(),codes:[...codes]}}
+    return {error:"No heading row with Date and Final Code was found. Keep the heading row from the template."}}
+  /* Location | I. Code | Product name | ... | 04-11-2026 | 03-11-2026 ... (lost pcs); month and 'last N days' columns are skipped */
+  function parseLoss(sheets){for(const s of sheets){const g=s.grid,h=findHead(g,{loc:["location","depot","loc","branch"],code:LCODE});if(!h)continue;
+      const hdr=g[h.r],dc=[];for(let c=0;c<hdr.length;c++){if(c===h.at.loc||c===h.at.code)continue;const v=hdr[c];if(v==null||v==="")continue;const d=(typeof v==="number"&&v<20000)?null:isoDate(v);if(d)dc.push({c,d})}
+      if(!dc.length)return {error:"No date columns (like 04-11-2026) were found in the heading row."};
+      const byM=new Map(),codes=new Set(),locs=new Set();let rows=0,total=0;
+      for(let r=h.r+1;r<g.length;r++){const row=g[r]||[],code=String(row[h.at.code]??"").trim(),loc=String(row[h.at.loc]??"").replace(/\s+/g," ").trim();if(!code||!loc)continue;rows++;codes.add(code);locs.add(loc);
+        dc.forEach(x=>{const q=num(row[x.c]);if(!(q>0))return;total+=q;const m=x.d.slice(0,7);let M=byM.get(m);if(!M)byM.set(m,M={codes:[],cp:new Map(),locs:[],lp:new Map(),dates:[],dp:new Map(),r:[]});
+          let ci=M.cp.get(code);if(ci==null){ci=M.codes.length;M.cp.set(code,ci);M.codes.push(code)}let li=M.lp.get(loc);if(li==null){li=M.locs.length;M.lp.set(loc,li);M.locs.push(loc)}
+          let di=M.dp.get(x.d);if(di==null){di=M.dates.length;M.dp.set(x.d,di);M.dates.push(x.d)}M.r.push(ci,li,di,+q.toFixed(3))})}
+      const months=[...byM.keys()].sort(),byMonth=new Map();months.forEach(m=>{const M=byM.get(m);byMonth.set(m,{codes:M.codes,locs:M.locs,dates:M.dates,r:M.r})});
+      const ds=dc.map(x=>x.d).sort();
+      return {kind:"mtloss",months,byMonth,n:codes.size,rows,total,locs:[...locs],dateFrom:ds[0],dateTo:ds[ds.length-1],nDates:ds.length,depots:new Map(),codes:[...codes]}}
+    return {error:"No heading row with Location and I. Code was found. Keep the heading row from the template."}}
+  /* Location | Depot | Mother Depot 1 | Mother Depot 2 */
+  function parseMdmap(sheets){for(const s of sheets){const g=s.grid,h=findHead(g,{loc:["location","loc","stocklocation"]});if(!h)continue;
+      const f=keys=>h.ks.findIndex((k,i)=>i!==h.at.loc&&keys.includes(k)),dep=f(["depot","appdepot","depotname","orderdepot"]),m1=f(["motherdepot1","motherdepot","mother1","md1"]),m2=f(["motherdepot2","mother2","md2"]);
+      if(m1<0)return {error:"No 'Mother Depot 1' column was found."};
+      const rows=[];for(let r=h.r+1;r<g.length;r++){const row=g[r]||[],t=c=>c<0?"":String(row[c]??"").replace(/\s+/g," ").trim(),loc=t(h.at.loc);if(!loc)continue;rows.push({loc,dep:t(dep),m1:t(m1),m2:t(m2)})}
+      return {kind:"mdmap",rows,n:rows.length,depots:new Map(),codes:[]}}
+    return {error:"No heading row with Location was found. Keep the heading row from the template."}}
+  /* the order depot a sale-loss location belongs to: Chennai2 -> Chennai, Mundka -> Delhi, UCL_Orissa -> Cuttack, Mandideep2 -> Mandideep */
+  function guessDep(loc,cfg){const k=key(loc).replace(/^ucl/,"").replace(/\d+$/,""),deps=cfg.depots,by=f=>deps.find(f);
+    const al={mundka:"delhi",newdelhi:"delhi",orissa:"cuttack",odisha:"cuttack",bhubaneswar:"cuttack",mandideep:"mandi",bengaluru:"bangalore",kochi:"cochin",gurugram:"gurgaon",calcutta:"kolkata",mumbai:"bhiwandi",bombay:"bhiwandi"};
+    const t=al[k]||k;let d=by(x=>key(x.id)===t||key(x.name)===t)||by(x=>key(x.name).startsWith(t)||t.startsWith(key(x.name))||key(x.id).startsWith(t)||t.startsWith(key(x.id)));return d?d.id:""}
+  /* a compact record split into parts of about 150 KB: base fields go on part 0, r (stride numbers per entry) is spread over the parts */
+  function packParts(col,id,base,r,stride,stamp){const est=JSON.stringify(base).length+r.length*5,parts=Math.max(1,Math.ceil(est/150000)),per=Math.ceil(r.length/stride/parts)*stride||stride,out=[];
+    for(let k=0;k<parts;k++){const d={...stamp,part:k,parts,r:r.slice(k*per,(k+1)*per)};if(!k)Object.assign(d,base);out.push({col,id:k?id+"~"+k:id,data:d})}return out}
   /* sheets = [{name, grid}] from one workbook */
   function parseUpload(kind,sheets,cfg,opt){
     if(kind==="items"){for(const s of sheets){const p=parseItems(s.grid);if(!p.error)return p}return {error:NOHEAD}}
     if(kind==="factory"||kind==="dispatch"||kind==="ecomplan")return parseFactory(kind,sheets,cfg,opt||{});
     if(kind==="fg"||kind==="dplan")return parseFG(sheets,opt||{},kind);
     if(kind==="hsale")return parseHist(sheets,cfg);
+    if(kind==="dstock")return parseDStock(sheets);
+    if(kind==="mtloss")return parseLoss(sheets);
+    if(kind==="mdmap")return parseMdmap(sheets);
+    if(kind==="lsale"){const p=parseUpload("sale",sheets,cfg);if(!p.error)p.kind="lsale";return p}
     if(kind==="fcarch"){const p=parseUpload("forecast",sheets,cfg);if(!p.error)p.kind="fcarch";return p}
     if(kind==="ecomsku"){const codes=[],seen=new Set(),used=[];let hasHead=false;
       for(const s of sheets){const h=headerRow(s.grid);if(!h)continue;hasHead=true;used.push(s.name);
@@ -383,6 +451,11 @@ let long=false,hasHead=false;
         const est=JSON.stringify(r).length+JSON.stringify(A.codes).length,parts=Math.max(1,Math.ceil(est/150000)),per=Math.ceil(r.length/4/parts)*4||4;
         for(let k=0;k<parts;k++){const d={month:m,part:k,parts,r:r.slice(k*per,(k+1)*per),...stamp};if(!k){d.codes=A.codes;d.deps=deps;d.chs=chs}out.push({col:"hsale",id:k?m+"~"+k:m,data:d})}});
       out.push({col:"meta",id:"hsale",data:{...stamp,rows:p.n,depots:[],months:p.months}});return out}
+    if(p.kind==="dstock"){const out=[];p.byDate.forEach((D,d)=>out.push(...packParts("dstock",d,{date:d,codes:D.codes,locs:p.locs},D.r,3,stamp)));
+      out.push({col:"meta",id:"dstock",data:{...stamp,rows:p.n,depots:[],dates:p.dates}});return out}
+    if(p.kind==="mtloss"){const out=[];p.byMonth.forEach((M,m)=>out.push(...packParts("mtloss",m,{month:m,codes:M.codes,locs:M.locs,dates:M.dates},M.r,4,stamp)));
+      out.push({col:"meta",id:"mtloss",data:{...stamp,rows:p.n,depots:[],months:p.months}});return out}
+    if(p.kind==="mdmap")return [{col:"cfg",id:"mdmap",data:{rows:p.rows,...stamp}},{col:"meta",id:"mdmap",data:{...stamp,rows:p.n,depots:[]}}];
     if(p.kind==="items")return [{col:"master",id:"items",data:{...p.cols,...stamp}},{col:"meta",id:"items",data:{...stamp,rows:p.n,depots:[]}}];
     const pack=(fields,v)=>{const o={};v.forEach((a,j)=>o["c"+j]=a);return {codes:p.codes,fields,v:o,...stamp}};
     const out=[];p.depots.forEach((d,id)=>out.push({col:p.kind,id,data:p.kind==="factory"?{...pack(d.fields,d.v),od:p.orderDate||""}:pack(d.fields,d.v)}));
@@ -468,6 +541,14 @@ let long=false,hasHead=false;
     const cfg=D.cfg,items=D.items?D.items.code.map((c,i)=>[c,D.items.name[i]]):[],dn=cfg.depots.map(d=>d.name);
     const lists=extra=>["Lists",[["Depot",...extra.map(e=>e[0])],...dn.map((d,i)=>[d,...extra.map(e=>e[1][i]??"")])]];
     if(kind==="items")return [["Item master",[ITEM_COLS.map(c=>c[1])]]];
+    if(kind==="dstock"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
+      const fc=D.items?(D.items.fcode||D.items.code).map((c,i)=>String(c||D.items.code[i])):[],seen=new Set(),rows=[];fc.forEach((c,i)=>{if(seen.has(c))return;seen.add(c);rows.push([dd,c,(D.items.fname&&D.items.fname[i])||D.items.name[i]])});
+      return [["Date-wise stock",[["Date","Final Code","Final Name",...LOSS_LOCS],...rows]]]}
+    if(kind==="mtloss"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=[1,2,3].map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
+      return [["MT loss",[["Location","I. Code","Product name",...ds]]]]}
+    if(kind==="mdmap")return [["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...LOSS_LOCS.map(l=>[l,(cfg.depots.find(d=>d.id===guessDep(l,cfg))||{name:""}).name,"",""])]],
+      ["Depots",[["Depot names you can use"],...dn.map(d=>[d])]]];
+    if(kind==="lsale")kind="sale";
     if(kind==="forecast"||kind==="direct"){const head=["Item Code","Item Name"];cfg.fcCh.forEach(ch=>dn.forEach(d=>head.push(ch+" | "+d)));return [[kind==="direct"?"Direct sale forecast":"Forecast",[head,...items]]]}
     if(kind==="stock")return [["Phy",[["Item Code","Item Name",...dn,"Plant FG"],...items]],["Transit",[["Item Code","Item Name",...dn],...items]],["Reserve",[["Item Code","Item Name",...dn],...items]]];
     if(kind==="factory"){const it=D.items,head=["Item Code","Item Name","Brand","Category","Sub-Category","Case Wgt","CBM","Case Lot",...dn];
@@ -580,7 +661,7 @@ let long=false,hasHead=false;
     return out}
   function snapshot(D,res){return {unit:"pcs",codes:D.items.code.map(String),depots:res.depots.map(d=>{const i=[],q=[];d.qty.forEach((x,j)=>{if(x>0){i.push(j);q.push(x)}});
     return {id:d.id,name:d.name,days:d.days,i,q,cases:d.cases,cs:+d.cs.toFixed(3),cbm:+d.cbm.toFixed(2)}})}}
-  return {fsSize,consolidate,finalMap,remapDoc,num,key,up,defaults,KINDS,STOCKF,ITEM_COLS,parseItems,parseUpload,toDocs,compute,detail,masterAoa,orderAoa,templateBook,fvs,snapshot,STOCK_SYN,splitDocs,merge,staleParts,PART,coverage,netForecast,shortfall,at,lots,toCases,isoDate,monthOf};
+  return {guessDep,LOSS_LOCS,fsSize,consolidate,finalMap,remapDoc,num,key,up,defaults,KINDS,STOCKF,ITEM_COLS,parseItems,parseUpload,toDocs,compute,detail,masterAoa,orderAoa,templateBook,fvs,snapshot,STOCK_SYN,splitDocs,merge,staleParts,PART,coverage,netForecast,shortfall,at,lots,toCases,isoDate,monthOf};
 })();
 /*CORE-END*/
 /* in-browser store used when nothing is connected: lets the page be tried, keeps nothing */
@@ -641,15 +722,19 @@ const Store=(()=>{
 
 const S={sess:{state:"loading"},capture:null,mail:[],snd:{rep:"orders",dep:"",to:null,msg:null},unit:(()=>{try{return localStorage.getItem("rd-unit")==="cs"?"cs":"pcs"}catch(_){return "pcs"}})(),f:(()=>{const e={poc:[],brand:[],cat:[],sub:[],code:[]};try{const v=JSON.parse(localStorage.getItem("rd-filt")||"null");if(v)Object.keys(e).forEach(k=>{if(Array.isArray(v[k]))e[k]=v[k].map(String)})}catch(_){}return e})(),ms:null,dash:{per:"6",ch:"",dep:"",hz:"1",tables:new Set()},histOn:false,hist:null,dashCache:null,
 W:null,wD:null,noLot:0,L:[],raw:{},me:null,names:new Map(),nameReq:new Set(),activity:new Map(),history:new Map(),loginDone:false,snapDue:false,fvsCache:null,rep:{dep:"",ch:"",view:"sum",sort:"low",cst:""},covCache:null,fv:{dep:"",ch:"",by:"ch",nz:false,mode:"net"},sf:{show:"send",nz:true,cat:""},sfCache:null,fcModes:null,D:{cfg:Core.defaults(),items:null,forecast:new Map(),direct:new Map(),stock:new Map(),sale:new Map(),po:new Map(),podate:new Map()},cfgSaved:false,meta:new Map(),members:new Map(),res:null,
-  got:new Set(),tab:"updates",loc:null,mloc:null,q:"",all:false,short:true,open:new Set(),pending:null,upKind:null,edit:null,dirty:false,authMode:"in",authMsg:"",unsubs:[]};
+  got:new Set(),tab:"home",loc:null,mloc:null,q:"",all:false,short:true,open:new Set(),pending:null,upKind:null,edit:null,dirty:false,authMode:"in",authMsg:"",unsubs:[]};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const n0=new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}),n1=new Intl.NumberFormat("en-IN",{minimumFractionDigits:1,maximumFractionDigits:1}),n2=new Intl.NumberFormat("en-IN",{maximumFractionDigits:2});
 const when=iso=>{const d=new Date(iso),t=d.toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"});return (d.toDateString()===new Date().toDateString()?"today":d.toLocaleDateString("en-IN",{day:"numeric",month:"short"}))+", "+t};
 const isToday=iso=>new Date(iso).toDateString()===new Date().toDateString();
 function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,4500)}
-const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"];
-const HELP={items:"Item number, Item name, Brand, Item Type, Final Code, Final Item Name, BOM, SCM PIC, Item Status, Case Lot, Case Wgt., MRP, Location, Length CM, Breath CM, Height CM, CBM, Category, Sub Category. SCM PIC drives the POC filter; a blank CBM is worked out from the carton size. Upload again when items change.",
+const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"],LOSS_ORDER=["mtloss","dstock","mdmap","lsale"];
+const HELP={mtloss:"Location, I. Code, Product name, then one column per date (04-11-2026, 03-11-2026 …) with the MT lost qty in pcs. Month and “Last N days” columns are skipped. Each upload replaces the months in it.",
+  dstock:"Date, Final Code, Final Name, then one column per location (Bangalore, Ahmedabad … UCL_Orissa) with the stock in pcs. One or many dates; each upload replaces only the dates in it.",
+  mdmap:"Location, Depot, Mother Depot 1, Mother Depot 2. Location and mother depots are written as in the stock file; Depot is the order depot in Settings (for forecast and sale). The template comes filled with your locations.",
+  lsale:"Optional. Same layout as the MTD sale (Item Code, Item Name, Sale Channel, Depot, Sale Qty). Used only by the MT sale loss report; without it the current MTD sale is used.",
+items:"Item number, Item name, Brand, Item Type, Final Code, Final Item Name, BOM, SCM PIC, Item Status, Case Lot, Case Wgt., MRP, Location, Length CM, Breath CM, Height CM, CBM, Category, Sub Category. SCM PIC drives the POC filter; a blank CBM is worked out from the carton size. Upload again when items change.",
   forecast:"One sheet: item code and name, then a column per channel and depot, such as “AVT | Chennai”. Total monthly forecast in pcs.",
   direct:"Same layout as the forecast. The part of the forecast planned as direct sale from the plant. It is taken off the forecast, channel by channel, before orders and reports are worked out.",
   stock:"Three sheets: Phy, Transit and Reserve. Each has item code and name, then a column per depot. Plant FG goes on the Phy sheet. Upload every day.",
@@ -687,7 +772,7 @@ function pocItems(items){if(!anyFilt())return items;const sets=FKEYS.filter(([k]
   if(!idx.length){FKEYS.forEach(([k])=>S.f[k]=[]);saveFilt();setTimeout(()=>toast("No items match those filters, so all items are shown."),0);return items}
   const out={...items};Core.ITEM_COLS.forEach(([f])=>{if(Array.isArray(items[f]))out[f]=idx.map(i=>items[f][i])});return out}
 function saveFilt(){try{localStorage.setItem("rd-filt",JSON.stringify(S.f))}catch(_){}}
-function renderFilt(){const el=$("filt");if(!el)return;if(!(S.sess.state==="ready"&&S.D.items&&S.res)){el.innerHTML="";el.hidden=true;return}el.hidden=false;
+function renderFilt(){const el=$("filt");if(!el)return;if(!(S.sess.state==="ready"&&S.D.items&&S.res)||NOFILT.has(S.tab)){el.innerHTML="";el.hidden=true;return}el.hidden=false;
   const btn=([k,l])=>{const v=S.f[k],o=v.length?new Map(fOptions(k)):null,txt=!v.length?"All":v.length===1?(k==="code"?v[0]:o.get(v[0])||v[0]):`${v.length} selected`;
     return `<div class="ms"><button class="btn sm ${v.length?"on":""}" data-ms="${k}" aria-expanded="${S.ms===k}">${esc(l)}: ${esc(txt)} ▾</button>${S.ms===k?panel(k,l):""}</div>`};
   const panel=(k,l)=>{const sel=S.msSel,opts=fOptions(k);
@@ -724,7 +809,7 @@ function startWatch(){
   if(S.unsubs.length)return;
   const dead=()=>toast("Lost the live connection. Reload the page to see the latest figures.");
   const w=(col,fn)=>S.unsubs.push(Store.watch(col,m=>{S.got.add(col);fn(m);refresh()},dead));
-  w("cfg",m=>{const c=m.get("main");S.cfgSaved=!!c;S.D.cfg=c?{...Core.defaults(),...c}:Core.defaults();if(!S.dirty)S.edit=null});
+  w("cfg",m=>{S.mdmap=(m.get("mdmap")||{}).rows||[];S.mdmapAt=(m.get("mdmap")||{}).at||"";S.lossCache=null;const c=m.get("main");S.cfgSaved=!!c;S.D.cfg=c?{...Core.defaults(),...c}:Core.defaults();if(!S.dirty)S.edit=null});
   w("master",m=>{S.raw.master=m;S.D.items=Core.merge(m).get("items")||null});
   WIDE.forEach(k=>w(k,m=>{S.raw[k]=m;S.D[k]=Core.merge(m)}));
   w("meta",m=>{S.meta=m});
@@ -732,10 +817,11 @@ function startWatch(){
   w("history",m=>{S.history=m});
   w("podate",m=>{S.raw.podate=m;S.D.podate=Core.merge(m)});
   w("mail",m=>{S.mail=(m.get("list")||{}).people||[]});
+  S.unsubs.push(Store.watch("lsale",m=>{S.raw.lsale=m;S.D.lsale=Core.merge(m);S.lsaleV=(S.lsaleV||0)+1;S.lossCache=null;if(lossTab())render()},()=>{}));
   w("ownerset",m=>{S.repHidden=((m.get("reports")||{}).hidden||[]).map(String)});
   if(Store.hasTeam&&S.sess.saved)w("members",m=>{S.members=m});
 }
-function stopWatch(){S.unsubs.forEach(u=>{try{u&&u()}catch(_){}});S.unsubs=[];S.got.clear();S.histOn=false;S.hist=null;S.dashCache=null;S.archOn=false;S.arch=null}
+function stopWatch(){S.unsubs.forEach(u=>{try{u&&u()}catch(_){}});S.unsubs=[];S.got.clear();S.histOn=false;S.hist=null;S.dashCache=null;S.archOn=false;S.arch=null;S.lossOn=false;S.lossErr=false;S.dst=null;S.mloss=null;S.lossCache=null}
 function onSession(s){if(s){S.sess=s;if(s.state==="ready"){startWatch();Store.me().then(id=>{S.me=id;render();afterCompute()}).catch(()=>{})}else{stopWatch();S.me=null;S.loginDone=false}}render()}
 const loaded=()=>["cfg","master","meta",...WIDE].every(c=>S.got.has(c));
 
@@ -754,7 +840,27 @@ function factorySummary(p){const out=[],withData=[...p.depots.entries()].filter(
   p.warn.forEach(w=>out.push(`<p class="notice">${esc(w)}</p>`));
   if(S.D.items){const have=knownCodes(),extra=p.codes.filter(c=>!have.has(String(c))).length;if(extra)out.push(`<p class="notice">${n0.format(extra)} item codes are not in the item master, so they are left out of the report.</p>`)}
   return out}
-function summary(p){if(p.kind==="fcarch"){const d=new Date(),pm=`${d.getMonth()?d.getFullYear():d.getFullYear()-1}-${String(d.getMonth()||12).padStart(2,"0")}`,withData=[...p.depots.entries()].filter(([,x])=>x.fields.length);
+function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=S.D.items?knownCodes():null,miss=c=>have?c.filter(x=>!have.has(String(x))).length:0;
+  if(p.kind==="mdmap"){const dk=new Set(cfg.depots.flatMap(d=>[Core.key(d.id),Core.key(d.name)])),stk=new Set(((S.dst&&S.dst[S.dst.length-1])||{locs:[]}).locs.map(Core.key));
+    out.push(`<p><b>${n0.format(p.n)} locations</b>.</p><div class="hscroll">${tbl(["Location","Order depot","Mother depot 1","Mother depot 2"],p.rows.map(r=>[esc(r.loc),esc(r.dep||"(auto) "+((cfg.depots.find(d=>d.id===Core.guessDep(r.loc,cfg))||{name:"–"}).name)),esc(r.m1||"–"),esc(r.m2||"–")]))}</div>`);
+    const badD=p.rows.filter(r=>r.dep&&!dk.has(Core.key(r.dep))).map(r=>r.dep);if(badD.length)out.push(`<p class="notice">Not a depot in Settings, so the depot is guessed from the location: ${badD.map(esc).join(", ")}.</p>`);
+    if(stk.size){const badM=[...new Set(p.rows.flatMap(r=>[r.m1,r.m2]).filter(m=>m&&!stk.has(Core.key(m))))];if(badM.length)out.push(`<p class="notice">Mother depots not found as a location in the date-wise stock: ${badM.map(esc).join(", ")}. Write them as in the stock file.</p>`)}
+    const noM=p.rows.filter(r=>!r.m1&&!r.m2).length;if(noM)out.push(`<p class="muted">${noM} locations have no mother depot.</p>`);
+    out.push(`<p class="muted">This list replaces the earlier one.</p>`);return out}
+  if(p.kind==="dstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}.</p>`,
+      `<p class="muted">These dates replace any stock already saved for them; other dates stay.</p>`);
+    if(p.badDates)out.push(`<p class="notice">${n0.format(p.badDates)} rows skipped because the Date could not be read.</p>`);
+    const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} codes are not in the item master.</p>`);return out}
+  if(p.kind==="mtloss"){const noDep=p.locs.filter(l=>!depOf(l)),noM=p.locs.filter(l=>!mothers(l).length);
+    out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.n)} items</b> at <b>${p.locs.length} locations</b>, ${p.nDates} dates from ${esc(dmy(p.dateFrom))} to ${esc(dmy(p.dateTo))}. Total MT loss ${n0.format(p.total)} pcs.</p>`,
+      `<p class="muted">Months in the file (${p.months.map(monLabel).map(esc).join(", ")}) replace those already saved; other months stay.</p>`);
+    if(noDep.length)out.push(`<p class="notice">No order depot found for: ${noDep.map(esc).join(", ")}. Put them in the mother depot list with their Depot.</p>`);
+    if(noM.length&&(S.mdmap||[]).length)out.push(`<p class="notice">No mother depot set for: ${noM.map(esc).join(", ")}.</p>`);
+    if(!(S.mdmap||[]).length)out.push(`<p class="notice">The mother depot list is not uploaded yet.</p>`);
+    const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} item codes are not in the item master.</p>`);return out}
+  return out}
+function summary(p){if(p.kind==="dstock"||p.kind==="mtloss"||p.kind==="mdmap")return lossSummary(p);
+  if(p.kind==="fcarch"){const d=new Date(),pm=`${d.getMonth()?d.getFullYear():d.getFullYear()-1}-${String(d.getMonth()||12).padStart(2,"0")}`,withData=[...p.depots.entries()].filter(([,x])=>x.fields.length);
     return [`<p><b>${n0.format(p.n)} items</b> for <b>${withData.length} depots</b>.</p>`,`<label class="fld" style="max-width:260px">Forecast month<input type="month" id="upMon" value="${pm}"></label>`,`<p class="muted">Kept as that month's forecast for the Forecast accuracy report. It does not change the current forecast or the orders.</p>`,...p.warn.map(w=>`<p class="notice">${esc(w)}</p>`)]}
   if(p.kind==="factory"||p.kind==="dispatch"||p.kind==="ecomplan")return factorySummary(p);
   if(p.kind==="hsale"){const have=[...((S.meta.get("hsale")||{}).months||[])],keep=have.filter(m=>!p.months.includes(m)),out=[`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.n)} items</b> over <b>${p.months.length} months</b>: ${esc(monLabel(p.months[0]))} – ${esc(monLabel(p.months[p.months.length-1]))}. Total ${n0.format(p.total)} pcs.</p>`,
@@ -787,6 +893,7 @@ function summary(p){if(p.kind==="fcarch"){const d=new Date(),pm=`${d.getMonth()?
     if(S.D.items){const have=knownCodes(),extra=p.codes.filter(c=>!have.has(String(c))).length;
       if(extra)out.push(`<p class="notice">${n0.format(extra)} item codes are not in the item master, so they will not get an order.</p>`)}
     else out.push(`<p class="notice">The item master is not uploaded yet. Orders appear once it is.</p>`)}
+  if(p.kind==="lsale")out.push(`<p class="muted">Used only by the MT sale loss report (its MT channel). It does not change the MTD sale, the orders or other reports.</p>`);
   return out}
 function readFile(kind,file){
   $("upTitle").textContent="Upload "+Core.KINDS[kind].label.toLowerCase();
@@ -799,6 +906,7 @@ function readFile(kind,file){
     if(!sheets.length)throw new Error("The file has no data.");
     if((kind==="factory"||kind==="dispatch"||kind==="fg"||kind==="ecomplan"||kind==="dplan")&&!S.D.items)throw new Error("Upload the item master first. Its Case Lot turns cartons into pcs.");
     if(kind==="hsale")ensureHist();
+    if(kind==="dstock"||kind==="mtloss")ensureLoss();
     const lp=new Map();if(S.D.items){const F=DFv().items;F.code.forEach((c,i)=>lp.set(String(c),Core.num(F.csLot[i])));S.D.items.code.forEach((c,i)=>lp.set(String(c),Core.num(S.D.items.csLot[i])))}
     const p=Core.parseUpload(kind,sheets,S.D.cfg,{lotOf:c=>lp.get(String(c))||0});
     if(p.error)throw new Error(p.error);
@@ -820,12 +928,15 @@ async function savePending(){
   try{if(x.p.kind==="factory"){const v=($("upOd")||{}).value;if(!/^\d{4}-\d{2}-\d{2}$/.test(v||""))throw Object.assign(new Error("Pick the order date."),{od:1});x.p.orderDate=v;
       x.out=x.out.map(h=>h.startsWith('<label class="fld" style="max-width:260px">Order date')?`<p>Order date <b>${esc(dmy(v))}</b>.</p>`:h)}
     const docs=Core.toDocs(x.p,{at:new Date().toISOString(),by:S.me||"",file:x.file}),up=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    const nm=docs.filter(d=>d.col!=="meta"),writes=x.p.kind==="hsale"?nm.map(d=>({...d,data:{...d.data,up}})):Core.splitDocs(nm,up),stale=Core.staleParts(S.raw,writes);
+    const nm=docs.filter(d=>d.col!=="meta"),writes=x.p.kind==="hsale"||x.p.kind==="dstock"||x.p.kind==="mtloss"?nm.map(d=>({...d,data:{...d.data,up}})):Core.splitDocs(nm,up),stale=Core.staleParts(S.raw,writes);
     const prog=(d,t)=>{$("upSave").textContent=`Saving… ${Math.round(d/t*100)}%`};
     await Store.setMany(writes,prog);                   /* the data first, in parts */
     for(const y of stale){try{await Store.del(y.col,y.id)}catch(_){}}
     if(x.p.kind==="po"&&x.p.podate){try{await Store.del("podate","_none")}catch(_){}}
-    await Store.setMany(docs.filter(d=>d.col==="meta")); /* the upload record only once all the data is in */
+    const metas=docs.filter(d=>d.col==="meta").map(d=>{const old=S.meta.get(d.id)||{};
+      if(d.id==="dstock")return {...d,data:{...d.data,dates:[...new Set([...(old.dates||[]),...d.data.dates])].sort()}};
+      if(d.id==="mtloss")return {...d,data:{...d.data,months:[...new Set([...(old.months||[]),...d.data.months])].sort()}};return d});
+    await Store.setMany(metas); /* the upload record only once all the data is in */
     S.pending=null;S.snapDue=true;logUpload(x.kind,x.file,x.p.n);
     $("upBody").innerHTML=`<p><span class="pill ok">Saved</span> Orders, the master file and reports have been worked out again.</p>`+x.out.join("");
     $("upSave").hidden=true;$("upDone").textContent="Done";
@@ -868,6 +979,8 @@ function saveMaster(){const R=S.res,M=Core.masterAoa(S.wD,R,UH()),it=S.wD.items;
 function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Map(it?it.code.map((c,i)=>[String(c),i]):[]);
   if(k==="hsale"&&!S.hist){ensureHist();toast("Loading the sales history. Press the button again in a moment.");return}
   if(k==="fcarch"&&!S.arch){ensureArch();toast("Loading the kept forecasts. Press the button again in a moment.");return}
+  if((k==="dstock"&&!S.dst)||(k==="mtloss"&&!S.mloss)){ensureLoss();toast("Loading the saved data. Press the button again in a moment.");return}
+  const fnm=c=>{const F=DFv().items;if(!F)return "";let i=F.code.indexOf(String(c));if(i<0)i=F.code.indexOf(fcode(c));return i<0?"":F.name[i]};
   const nm=c=>{const i=pos.get(String(c));return i==null?"":it.name[i]},lot=c=>{const i=pos.get(String(c));const l=i==null?0:Core.num(it.csLot[i]);return l>0?l:1},r4=v=>+(+v||0).toFixed(4);
   const dn=id=>(cfg.depots.find(d=>d.id===id)||{name:id}).name,docs=mp=>cfg.depots.map(d=>[d,mp&&mp.get(d.id)]).filter(x=>x[1]&&Array.isArray(x[1].codes)&&x[1].fields&&x[1].fields.length);
   const val=(doc,c,j)=>doc.v["c"+c]?(doc.v["c"+c][j]||0):0;
@@ -889,6 +1002,14 @@ function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Ma
     const phy=one(0);phy[0].push("Plant FG");const inPhy=new Set(phy.slice(1).map(r=>String(r[0])));phy.slice(1).forEach(r=>r.push(r4(fgm.get(String(r[0]))||0)));
     fgm.forEach((q,c)=>{if(!inPhy.has(c)&&q){const r=[c,nm(c),...cfg.depots.map(()=>0),r4(q)];phy.push(r)}});
     sheets=[["Phy",phy],["Transit",one(1)],["Reserve",one(2)]]}
+  else if(k==="lsale")sheets=[["MT sale for sale loss",long(D.lsale,["Item Code","Item Name","Sale Channel","Depot","Sale Qty"],(c,dep,f,q)=>[c,nm(c),f,dep.name,r4(q)])]];
+  else if(k==="mdmap")sheets=[["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...(S.mdmap||[]).map(r=>[r.loc,r.dep,r.m1,r.m2])]]];
+  else if(k==="dstock"){const locs=[];(S.dst||[]).forEach(x=>x.locs.forEach(l=>{if(!locs.includes(l))locs.push(l)}));const rows=[["Date","Final Code","Final Name",...locs]];
+    (S.dst||[]).forEach(x=>{const li=x.locs.map(l=>locs.indexOf(l)),by=new Map();for(let t=0;t<x.r.length;t+=3){let a=by.get(x.r[t]);if(!a)by.set(x.r[t],a=new Array(locs.length).fill(0));a[li[x.r[t+1]]]+=x.r[t+2]}
+      by.forEach((a,ci)=>{const c=String(x.codes[ci]);rows.push([dmy(x.key),c,fnm(c),...a.map(r4)])})});sheets=[["Date-wise stock",rows]]}
+  else if(k==="mtloss"){const ds=[...new Set((S.mloss||[]).flatMap(x=>x.dates))].sort().reverse(),dp=new Map(ds.map((d,j)=>[d,j])),by=new Map();
+    (S.mloss||[]).forEach(x=>{for(let t=0;t<x.r.length;t+=4){const loc=x.locs[x.r[t+1]],c=String(x.codes[x.r[t]]),kk=loc+"\u0001"+c;let a=by.get(kk);if(!a)by.set(kk,a={loc,c,v:new Array(ds.length).fill(0)});a.v[dp.get(x.dates[x.r[t+2]])]+=x.r[t+3]}});
+    sheets=[["MT loss",[["Location","I. Code","Product name",...ds.map(dmy)],...[...by.values()].map(a=>[a.loc,a.c,nm(a.c)||fnm(a.c),...a.v.map(r4)])]]]}
   else if(k==="sale")sheets=[["MTD sale",long(D.sale,["Item Code","Item Name","Sale Channel","Depot","Sale Qty"],(c,dep,f,q)=>[c,nm(c),f,dep.name,r4(q)])]];
   else if(k==="po"){const pd=D.podate&&D.podate.size&&!D.podate.has("_none")?D.podate:null,byCh=new Map();
     docs(D.po).forEach(([dep,d])=>d.fields.forEach((f,c)=>{const x=Core.key(f);if(x==="ecom"&&pd)return;if(!byCh.has(x))byCh.set(x,{name:f,rows:[]});d.codes.forEach((code,j)=>{const q=val(d,c,j);if(q)byCh.get(x).rows.push([String(code),nm(code),dep.name,r4(q)])})}));
@@ -929,7 +1050,38 @@ function saveHist(day){const h=S.history.get(day);if(!h)return;const it=S.wD.ite
 function monthGone(){const d=saleDay();return d.getDate()/new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
 
 /* ---------- views ---------- */
-const TABS=[["updates","Updates"],["orders","Orders"],["forecast","Forecast"],["master","Master file"],["reports","Reports"],["dashboard","Dashboard"],["plant","Plant stock"],["history","History"],["send","Send"],["users","Users"],["settings","Settings"]];
+const TABS=[["home","Home"],["updates","Data upload"],["orders","Orders"],["forecast","Forecast"],["master","Master file"],["reports","Reports"],["dashboard","Dashboard"],["plant","Plant stock"],["history","History"],["send","Send"],["users","Users"],["settings","Settings"]];
+const ICONS={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  updates:'<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/>',
+  orders:'<path d="M2.5 6h11v10h-11z"/><path d="M13.5 9.5h4l3.5 3.5v3h-7.5"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  forecast:'<path d="M3 17.5 9 11.5l4 4 8-8"/><path d="M15 7.5h6v6"/>',
+  master:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9.5h18M9 9.5V20M15 9.5V20"/>',
+  reports:'<path d="M14 3H6.5A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V9z"/><path d="M14 3v6h6M8.5 17.5v-3M12 17.5v-6M15.5 17.5v-2"/>',
+  dashboard:'<rect x="3" y="3" width="7.5" height="9" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="1.5"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="1.5"/><rect x="3" y="15" width="7.5" height="6" rx="1.5"/>',
+  plant:'<path d="M2 21h20"/><path d="M4 21V10l5 3v-3l5 3V5.5h6V21"/><path d="M17 9v.01M17 12.5v.01M17 16v.01"/>',
+  history:'<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4.5h4.5M12 7.5V12l3 2"/>',
+  send:'<path d="M21.5 2.5 10.5 13.5"/><path d="M21.5 2.5 14.5 21.5l-4-8-8-4z"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20.5a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20.5a6.5 6.5 0 0 0-3.8-5.9"/>',
+  settings:'<path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1"/><circle cx="15" cy="6.5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17.5" r="2"/>'};
+const icon=k=>`<svg viewBox="0 0 24 24" class="ico" aria-hidden="true">${ICONS[k]||""}</svg>`;
+const NOFILT=new Set(["home","updates","users","settings","history","send","plant"]);
+function viewHome(){const R=S.res,s=S.sess,ro=!!s.readOnly,today=ORDER.filter(k=>Core.KINDS[k].daily),fresh=today.filter(k=>{const m=S.meta.get(k);return m&&isToday(m.at)}).length;
+  const m=k=>S.meta.get(k),upd=k=>m(k)?"Updated "+when(m(k).at):"Not uploaded yet",hm=(m("hsale")||{}).months||[];
+  const T={updates:["Upload the item master, forecast, stock, sales, POs, factory and sale loss files.",[fresh===today.length?"ok":"warn",`${fresh} of ${today.length} daily files updated today`]],
+    orders:["Depot-wise order with cover days, cases, CBM and load.",[R&&R.depots.some(d=>d.cases>0)?"ok":"",R?`${nq.format(R.depots.reduce((a,l)=>a+(CS()?l.cs:l.cases),0))} ${UL()} to order`:"No orders yet"]],
+    forecast:["Forecast against sale by depot and channel, net of direct sale.",["",upd("forecast")]],
+    master:["Every item at every depot: forecast, PO, stock, sale and order.",["",S.DF&&S.DF.items?`${n0.format(S.DF.items.code.length)} final codes`:"No item master yet"]],
+    reports:["Coverage, safety stock, Ecom PO, MT pick-up, accuracy and MT sale loss reasons.",["",`${repVisible().length} reports`]],
+    dashboard:["Sales trends, ABC × XYZ, statistical forecast and new or lost SKUs.",["",hm.length?`${hm.length} months of sales history`:"No sales history yet"]],
+    plant:["Factory FG against what the depots need, and the balance at the plant.",["",upd("fg")]],
+    history:["Each day's orders as they were sent, ready to download again.",["",`${n0.format(S.history.size)} day${S.history.size===1?"":"s"} kept`]],
+    send:["Email or copy each depot's order to its team.",["","Owner only"]],
+    users:["Who can sign in and who can change the data.",["","Owner only"]],
+    settings:["Depots, cover days, channels, safety stock days and limits.",["",`${S.D.cfg.depots.length} depots`]]};
+  const d=new Date(),hr=d.getHours(),hi=hr<12?"Good morning":hr<17?"Good afternoon":"Good evening",who=S.sess.user?S.sess.user.email.split("@")[0]:S.me&&S.names.get(S.me)?S.names.get(S.me).split(" ")[0]:"";
+  const list=TABS.filter(([k])=>k!=="home"&&!(ro&&(k==="send"||k==="users")));
+  return `<div class="hello"><div><h2>${hi}${who?", "+esc(who):""}</h2><p class="muted">${d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${ro?" · view only":""}</p></div></div>
+  <div class="tiles">${list.map(([k,l])=>{const [txt,[dot,st]]=T[k]||["",["",""]];return `<button class="tile" data-tab="${k}"><span class="ic">${icon(k)}</span><h3>${esc(l)}</h3><p>${esc(txt)}</p><span class="ts"><span class="dot ${dot}"></span>${esc(st)}</span></button>`}).join("")}</div>`}
 function render(){
   const ae=document.activeElement,keep=ae&&ae.id&&$("view").contains(ae)&&ae.type!=="checkbox"&&ae.tagName==="INPUT"?{id:ae.id,v:ae.value,s:ae.selectionStart}:null;
   const s=S.sess,ready=s.state==="ready",R=S.res;
@@ -941,12 +1093,12 @@ function render(){
   if(ready&&R){const cases=R.depots.reduce((a,l)=>a+(CS()?l.cs:l.cases),0),cbm=R.depots.reduce((a,l)=>a+l.cbm,0),wt=R.depots.reduce((a,l)=>a+l.wt,0),short=R.fg?R.fg.filter(x=>x.bal<0).length:null;
     $("sum").innerHTML=`<div><dt>Total order</dt><dd>${nq.format(cases)} <small>${UL()}</small></dd></div><div><dt>Depots ordering</dt><dd>${R.depots.filter(l=>l.cases>0).length} <small>of ${R.depots.length}</small></dd></div>
       <div><dt>Load</dt><dd>${n0.format(cbm)} <small>CBM, ${n0.format(wt)} t</small></dd></div><div class="${short?"c":""}"><dt>Items short at plant</dt><dd>${short==null?"<small>no plant stock yet</small>":short}</dd></div>`}
-  const ro=!!s.readOnly,tabs=TABS.filter(([k])=>!(ro&&(k==="send"||k==="users")));if(ro&&(S.tab==="send"||S.tab==="users"))S.tab="orders";
-  $("tabs").innerHTML=tabs.map(([k,l])=>`<button role="tab" aria-selected="${S.tab===k}" data-tab="${k}">${l}</button>`).join("");
+  const ro=!!s.readOnly,tabs=TABS.filter(([k])=>!(ro&&(k==="send"||k==="users")));if(ro&&(S.tab==="send"||S.tab==="users"))S.tab="home";
+  $("tabs").innerHTML=tabs.map(([k,l])=>`<button role="tab" aria-selected="${S.tab===k}" data-tab="${k}">${icon(k)}<span>${l}</span></button>`).join("");
   let h;
   if(!ready)h=viewGate();
   else if(!loaded())h=`<div class="panel empty"><p>Loading…</p></div>`;
-  else h={updates:viewUpdates,orders:viewOrders,forecast:viewForecast,master:viewMaster,reports:viewReports,dashboard:viewDashboard,plant:viewPlant,history:viewHistory,send:viewSend,users:viewUsers,settings:viewSettings}[S.tab]();
+  else h={home:viewHome,updates:viewUpdates,orders:viewOrders,forecast:viewForecast,master:viewMaster,reports:viewReports,dashboard:viewDashboard,plant:viewPlant,history:viewHistory,send:viewSend,users:viewUsers,settings:viewSettings}[S.tab]();
   if(ready)ensureNames([...[...S.meta.values()].map(m=>m.by),...S.activity.keys(),...[...S.history.values()].map(h=>h.by),S.me]);
   $("view").innerHTML=h;addMailButtons();
   if(keep){const e=$(keep.id);if(e){e.focus();e.value=keep.v;try{e.setSelectionRange(keep.s,keep.s)}catch(_){}}}
@@ -973,15 +1125,17 @@ function viewUpdates(){
   const w=S.sess.canWrite,cfg=S.D.cfg;
   const lotNote=S.noLot?`<p class="notice" style="margin-bottom:12px">${n0.format(S.noLot)} items have no Case Lot in the item master, so 1 pc is counted as 1 case for them.</p>`:"";
   const broken=k=>{const m=S.meta.get(k);if(!m)return false;if(k==="items")return !S.D.items;return (m.depots||[]).some(id=>!S.D[k].has(id))};
-  return lotNote+`<div class="panel"><ol class="ups">${ORDER.map((k,i)=>{const K=Core.KINDS[k],m=S.meta.get(k),stale=m&&K.daily&&!isToday(m.at),bad=broken(k);
+  const li=(k,i)=>{const K=Core.KINDS[k],m=S.meta.get(k),stale=m&&K.daily&&!isToday(m.at),bad=broken(k);
     return `<li><span class="no">${i+1}</span><div><h2>${K.label}</h2><p class="muted">${HELP[k]}</p></div>
-      <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} items${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}`:`<span class="pill off">Not uploaded yet</span>`}</div>
-      <div class="bar">${Store.canSave()?`<button class="btn sm" data-tpl="${k}">Template</button>${m?`<button class="btn sm" data-last="${k}">Download last upload</button>`:""}`:""}${w?`<button class="btn sm pri" data-up="${k}">Upload</button>`:""}</div></li>`}).join("")}</ol></div>
+      <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} ${k==="mdmap"?"locations":k==="dstock"?"codes, "+((m.dates||[]).length)+" dates":"items"}${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}`:`<span class="pill off">Not uploaded yet</span>`}</div>
+      <div class="bar">${Store.canSave()?`<button class="btn sm" data-tpl="${k}">Template</button>${m?`<button class="btn sm" data-last="${k}">Download last upload</button>`:""}`:""}${w?`<button class="btn sm pri" data-up="${k}">Upload</button>`:""}</div></li>`};
+  return lotNote+`<div class="panel"><ol class="ups">${ORDER.map(li).join("")}</ol></div>
+  <div class="panel" style="margin-top:14px"><div class="pad" style="padding-bottom:0"><h2>Sale loss files</h2><p class="muted">For the “MT sale loss reasons” report. They do not change the orders.</p></div><ol class="ups">${LOSS_ORDER.map((k,i)=>li(k,ORDER.length+i)).join("")}</ol></div>
   <div class="panel pad" style="margin-top:14px"><h2>How the order is worked out</h2>
     <p class="rule">Order = (forecast − direct sale forecast) × (safety + transit + order frequency days) ÷ ${esc(cfg.workDays)} + open PO − physical stock − transit stock</p>
     <p class="muted">Each upload is checked first and stored when you press Save. Each day's orders are kept under History. Done for every item at every depot from the pcs you upload, and rounded up to full cases using the Case Lot in the item master. Use “Show in” at the top to see any figure in pcs or cases (cases = pcs ÷ case lot). Forecast is net of the direct sale forecast, channel by channel, and is never below zero. Forecast and open PO are totals across channels. Reserved stock and MTD sale are shown in the master file but do not change the order. The days for each depot are under Settings.</p></div>`;
 }
-const need=()=>`<div class="panel empty"><h2>No orders yet</h2><p>Upload the item master, the forecast and the daily stock on the Updates tab. Orders appear here as soon as they are in.</p><button class="btn pri" data-tab="updates">Go to Updates</button></div>`;
+const need=()=>`<div class="panel empty"><h2>No orders yet</h2><p>Upload the item master, the forecast and the daily stock on the Data upload tab. Orders appear here as soon as they are in.</p><button class="btn pri" data-tab="updates">Go to Data upload</button></div>`;
 function viewOrders(){
   const R=S.res;if(!R)return need();
   if(S.loc&&R.depots.some(d=>d.id===S.loc))return viewSheet();
@@ -1129,7 +1283,7 @@ function saleDay(){const m=S.meta.get("sale"),d=m?new Date(m.at):new Date();d.se
 function ecomAge(){const v=S.D.cfg.ecomAge;return v==null||v===""?6:Core.num(v)}
 function drrDays(){const o=Core.num(S.D.cfg.drrDays);if(o>0)return o;return saleDay().getDate()}
 function sfData(){return S.sfCache||(S.sfCache=Core.shortfall(S.wD,S.res,drrDays()))}
-const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
+const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["loss","MT sale loss reasons"]];
 /* report types the owner deleted are left out of the list; the owner can delete and restore them */
 const repHidden=()=>new Set(S.repHidden||[]);
 const repVisible=()=>{const h=repHidden();return RVIEWS.filter(([v])=>!h.has(v))};
@@ -1212,7 +1366,7 @@ function viewEcomNoPO(){const has=DFv().ecomsku&&DFv().ecomsku.get("all"),pc=enp
   return depotReport({U:enpData(),sel:S.rep.enpd||"",selId:"enpd",dlAct:"dlenp",
     extra:`<label class="chk">Stock above Ecom PO by more than <select id="enpp" aria-label="Stock above PO by more than">${PCTS.map(v=>`<option value="${v}" ${v===pc?"selected":""}>${v}%</option>`).join("")}</select></label>`,
     note:`Ecom SKUs (from the Ecom SKU list upload) whose stock at a depot (physical + transit) is more than ${pc}% above the Ecom open PO there (stock > Ecom PO × ${n2.format(1+pc/100)}), of any PO age. A depot with stock and no Ecom PO is always listed. Excess stock = stock − Ecom PO; CBM and MT (metric tonnes) are for the excess, using CBM and Case Wgt per case from the item master. Figures in ${UL()}.`,
-    empty:!has?"Upload the Ecom SKU list on the Updates tab to see this report.":!S.meta.get("po")?"Upload the open PO to see this report.":"",
+    empty:!has?"Upload the Ecom SKU list on the Data upload tab to see this report.":!S.meta.get("po")?"Upload the open PO to see this report.":"",
     cols:["Ecom PO","Stock","Excess stock","CBM","MT"],
     cell:r=>`<td class="n">${r.po?nq.format(r.po):'<span class="muted">0</span>'}</td><td class="n">${nq.format(r.st)}</td><td class="n behind">${nq.format(r.ex)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
     tot:rows=>`<td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.ex))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`,
@@ -1368,7 +1522,7 @@ function dcard(id,title,sub,chart,table,cls,note){const tb=S.dash.tables.has(id)
 const tbl=(head,rows)=>`<table class="mini"><thead><tr>${head.map((h,j)=>`<th class="${j?"n":""}">${h}</th>`).join("")}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map((v,j)=>`<td class="${j?"n":""}">${v}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${head.length}" class="muted">None</td></tr>`}</tbody></table>`;
 function viewDashboard(){ensureHist();const m=S.meta.get("hsale");
   if(!S.hist)return `<div class="panel empty"><p>Loading sales history…</p></div>`;
-  if(!S.hist.length)return `<div class="panel empty"><h2>No sales history yet</h2><p>Upload the sales history (Item Code, Item Name, Month, Sales Channel, Depot, Qty) on the Updates tab. Any number of months can be loaded; each upload replaces only the months in it.</p><button class="btn pri" data-tab="updates">Go to Updates</button></div>`;
+  if(!S.hist.length)return `<div class="panel empty"><h2>No sales history yet</h2><p>Upload the sales history (Item Code, Item Name, Month, Sales Channel, Depot, Qty) on the Data upload tab. Any number of months can be loaded; each upload replaces only the months in it.</p><button class="btn pri" data-tab="updates">Go to Data upload</button></div>`;
   const D=dashData(),ds=S.dash,vw=Math.max(300,($("view").clientWidth||1100)),two=vw>=900,fullW=vw-38,halfW=two?(vw-16)/2-38:fullW,U=UL();
   const chOpts=[...new Set(S.hist.flatMap(h=>h.chs))].map(c=>[Core.key(c),c]).filter((x,i,a)=>a.findIndex(y=>y[0]===x[0])===i);
   const bar=`<div class="bar dfilt"><label class="chk">Period <select id="dper">${[["3","Last 3 months"],["6","Last 6 months"],["12","Last 12 months"],["24","Last 24 months"],["all","All months"]].map(([v,l])=>`<option value="${v}" ${ds.per===v?"selected":""}>${l}</option>`).join("")}</select></label>
@@ -1412,7 +1566,7 @@ function viewDashboard(){ensureHist();const m=S.meta.get("hsale");
     <div class="kpi"><div class="kl">vs uploaded forecast (planned)</div><div class="kv">${F.plan>0?gapP(F.total,F.plan):"–"}</div><div class="kd muted">${F.plan>0?`Planned ${nc.format(F.plan)}`:"No forecast uploaded"}</div></div>
     <div class="kpi"><div class="kl">Method accuracy (back-test)</div><div class="kv">${F.accItem==null?"–":n0.format(F.accItem*100)+"%"}</div><div class="kd muted">${F.accItem==null?"Needs 4+ months":`SKU level; ${n0.format(F.accSer*100)}% at SKU × channel × depot`}</div></div></div>`;
   const fcRowsT=(rows,lbl)=>tbl([lbl,"Last month","Avg last 3",`Statistical (${esc(monLabel(F.month))})`,"Planned","Stat. vs planned"],rows.map(r=>[esc(r.name),nq.format(r.last),nq.format(r.avg),`<b>${nq.format(r.stat)}</b>`,r.plan?nq.format(r.plan):"–",r.plan?gapP(r.stat,r.plan):"–"]));
-  dec.unshift(dcard("fc",`Statistical forecast by channel, SKU and depot`,`From the sales history: weighted average of the last 3 months (50% latest, 30%, 20%)${F.seasonOn?", adjusted by each channel's change in the same months last year (0.7–1.4×)":"; seasonality is added automatically once 15+ months are loaded"}. Planned = the forecast uploaded on the Updates tab (net of direct sale).`,
+  dec.unshift(dcard("fc",`Statistical forecast by channel, SKU and depot`,`From the sales history: weighted average of the last 3 months (50% latest, 30%, 20%)${F.seasonOn?", adjusted by each channel's change in the same months last year (0.7–1.4×)":"; seasonality is added automatically once 15+ months are loaded"}. Planned = the forecast uploaded on the Data upload tab (net of direct sale).`,
     fcK+`<div class="bar" style="margin:4px 0 10px">${Store.canSave()?`<button class="btn pri" data-act="dlstatfc">Download forecast for ${esc(monLabel(F.month))} (upload format)</button>`:""}<span class="muted">One row per SKU, a column per channel | depot, in pcs — the same layout as the forecast upload.</span></div>
       <h4>By channel</h4><div class="hscroll">${fcRowsT(F.byCh,"Channel")}</div><h4>By depot</h4><div class="hscroll">${fcRowsT(F.byDep,"Depot")}</div>`,
     fcRowsT(F.byCh,"Channel")+fcRowsT(F.byDep,"Depot"),"full","<b>Decide:</b> use this as the starting point for next month's forecast: download it, adjust for promotions, launches and listings, then upload it as the forecast. Big gaps against the planned forecast are listed below."));
@@ -1548,7 +1702,7 @@ function viewFA(){ensureArch();const loading=!S.arch,months=loading?[]:faMonths(
   const pctA=v=>v==null?"–":n0.format(v*100)+"%";
   const mSel=months.length?`<label class="chk">Past forecast <select id="fam">${months.map(m=>`<option value="${m}" ${mo===m?"selected":""}>${esc(monLabel(m))}</option>`).join("")}</select></label>`:"";
   if(loading)return `<div class="bar" style="margin-bottom:10px">${rvSel()}${mSel}</div><div class="panel empty"><p>Loading the past forecasts…</p></div>`;
-  if(!months.length)return `<div class="bar" style="margin-bottom:10px">${rvSel()}</div><div class="panel empty"><h2>No past forecast yet</h2><p>Upload a forecast with “Past forecast (for accuracy)” on the Updates tab and pick its month. Accuracy is that forecast against the MTD sale uploaded.</p><button class="btn pri" data-tab="updates">Go to Updates</button></div>`;
+  if(!months.length)return `<div class="bar" style="margin-bottom:10px">${rvSel()}</div><div class="panel empty"><h2>No past forecast yet</h2><p>Upload a forecast with “Past forecast (for accuracy)” on the Data upload tab and pick its month. Accuracy is that forecast against the MTD sale uploaded.</p><button class="btn pri" data-tab="updates">Go to Data upload</button></div>`;
   const F=faData(),G=faGrid(F),it=S.wD.items,sel=S.rep.fad||"",MAX=300;
   const bar=`<div class="bar" style="margin-bottom:10px">${rvSel()}${mSel}<select id="fad" aria-label="Location"><option value="">All locations</option>${S.D.cfg.depots.map(d=>`<option value="${esc(d.id)}" ${sel===d.id?"selected":""}>${esc(d.name)}</option>`).join("")}</select>${chSel("fach",S.rep.fach||"")}
     <input class="grow" type="search" id="q" placeholder="Search item, brand, category or POC" value="${esc(S.q)}" aria-label="Search">
@@ -1598,7 +1752,7 @@ function viewShortfall(){
     <label class="chk"><input type="checkbox" id="sfnz" ${sf.nz?"checked":""}> Only items with a shortfall</label>
     ${Store.canSave()?`<button class="btn" data-act="dlsf">Download (Excel)</button>`:""}</div>
   <p class="muted" style="margin-bottom:10px">DRR = MTD sale ÷ ${n0.format(days)} days${Core.num(S.D.cfg.drrDays)>0?" (set in Settings)":`: MTD sale up to ${saleDay().toLocaleDateString("en-IN",{day:"numeric",month:"short"})}, the day before it was uploaded`}, using only the sale channels listed in Settings except Ecom (${esc(S.D.cfg.saleCh.filter(c=>Core.key(c)!=="ecom").join(", "))}), for each item and depot. Ecom is counted only through its open PO. Safety stock need = DRR × the item's brand safety days at the depot (Settings). Total required = safety stock need + Ecom open PO older than ${ecomAge()} days (today − PO Date${SF.length&&!SF[0].dated?`; no PO dates uploaded, so all Ecom POs count`:""}) + MT open PO. Factory balance pending = factory order − dispatches dated on or after the order date${fOd()?` (${esc(dmy(fOd()))})`:""}, never below zero${S.meta.get("factory")?"":"; no factory order uploaded yet, so it is zero"}. Shortfall = total required − (physical + transit + factory balance pending), rounded up, never below zero. Ecom open PO is net of the Ecom direct factory plan for that depot. Factory FG of ${n0.format(FG.fgMin??5)} cases or less for an item counts as zero (Settings). Balance FG = factory FG − factory balance pending of all depots − Ecom direct factory plan − factory direct plan. If balance FG covers the total shortfall of an item, every depot gets its full shortfall; if not, the balance FG is shared out across depots in proportion to their shortfall (whole ${UL()}).</p>
-  ${FG.has?"":`<p class="notice" style="margin-bottom:10px">Factory FG is not uploaded yet, so nothing can be sent from it. Upload it on the Updates tab, or switch the figure to “Shortfall (need)”.</p>`}
+  ${FG.has?"":`<p class="notice" style="margin-bottom:10px">Factory FG is not uploaded yet, so nothing can be sent from it. Upload it on the Data upload tab, or switch the figure to “Shortfall (need)”.</p>`}
   ${hasSS()?"":`<p class="notice" style="margin-bottom:10px">No brand safety days are set yet, so every shortfall is zero. Add them under Settings, Safety stock days by brand and depot.</p>`}`;
   return bar+`<div class="panel"><div class="scroll"><table><thead><tr><th>Item Code</th><th>Item Name</th><th>Category</th><th>Sub-Category</th>${SF.map(x=>`<th class="n">${esc(x.name)}</th>`).join("")}<th class="n g">Total</th><th class="n">Factory FG</th><th class="n">Balance pending</th><th class="n">Ecom direct plan</th><th class="n">Factory direct plan</th><th class="n">Balance FG</th></tr></thead><tbody>
     <tr><td colspan="4" class="nm">${n0.format(list.length)} items shown${show==="short"?`, short at ${nShort.filter(Boolean).length} depots`:""}</td>${colTot.map(v=>`<td class="n"><b>${fmt(v)}</b></td>`).join("")}<td class="n g big">${fmt(all)}</td>${[FG.fg,FG.balT,FG.eplT,FG.dpl,FG.fresh].map(a=>`<td class="n"><b>${a?nq.format(list.reduce((s,i)=>s+a[i],0)):0}</b></td>`).join("")}</tr>
@@ -1613,6 +1767,93 @@ function saveShortfall(){const R=S.res,it=S.wD.items,SF=sfData(),days=drrDays(),
   const set=[["Brand",...S.D.cfg.depots.map(d=>d.name)],...brandList().map(([bk,bl])=>[bl,...S.D.cfg.depots.map(d=>Core.num(((S.D.cfg.ssBrand||{})[bk]||{})[d.id]))])];
   const FG=SF.fg,fgs=[["Item Code","Item Name","Category","Sub-Category",`Factory FG (up to ${FG.fgMin} cases counted as 0)`,"Factory balance pending (all depots)","Ecom direct factory plan","Factory direct plan","Balance FG","Total shortfall","To send from FG","Not covered"],...it.code.map((c,i)=>[c,it.name[i],it.cat[i],it.sub[i],r1(FG.fg[i]),r1(FG.balT[i]),r1(FG.eplT[i]),r1(FG.dpl[i]),r1(FG.fresh[i]),r1(FG.need[i]),r1(FG.sent[i]),r1(FG.need[i]-FG.sent[i])])];
   save(`Safety stock shortfall ${stamp()}.xlsx`,[["To send from FG",sheet(x=>x.send,v=>v)],["Factory FG by item",fgs],["Shortfall (need)",sheet(x=>x.short,v=>v)],["Not covered by FG",sheet(x=>x.unc,v=>v)],["Total required",sheet(x=>x.req,r1)],["Safety stock need",sheet(x=>x.ssq,r1)],[`Ecom PO counted`,sheet(x=>x.poE,r1)],["Ecom direct factory plan",sheet(x=>x.epl,r1)],["MT open PO",sheet(x=>x.poM,r1)],["Stock (phy+transit)",sheet(x=>x.stock,v=>v)],["Factory balance pending",sheet(x=>x.bal,r1)],["Factory order",sheet(x=>x.ord,r1)],["Dispatched since order",sheet(x=>x.disp,r1)],["DRR",sheet(x=>x.drr,r1)],["Detail by item and depot",det],["Brand safety days used",set]])}
+/* ---------- MT sale loss: the reason behind every lost pc ---------- */
+const LR=[["r1","Stock available but bill not done"],["r2","Stock not available at depot (SCM replenishment issue)"],["r3","Stock shortage at mother depot"],["r4","Already billed 100% against forecast"],["nd","No stock data for the date"],["nm","Mother depot not set"]];
+const lossTab=()=>S.tab==="reports"&&S.rep.view==="loss";
+/* stock by date and the loss qty are loaded only when the report (or their upload) is opened */
+function ensureLoss(){if(S.lossOn||S.sess.state!=="ready")return;S.lossOn=true;ensureArch();
+  const dead=()=>{S.lossErr=true;if(lossTab())render()};
+  S.unsubs.push(Store.watch("dstock",m=>{S.raw.dstock=m;S.dst=assembleParts(m,"date");S.dstC=new Map();S.lossCache=null;if(lossTab())render()},dead));
+  S.unsubs.push(Store.watch("mtloss",m=>{S.raw.mtloss=m;S.mloss=assembleParts(m,"month");S.lossCache=null;if(lossTab())render()},dead))}
+function assembleParts(m,f){const g=new Map();m.forEach((d,id)=>{const [b,k]=String(id).split("~");if(!g.has(b))g.set(b,[]);g.get(b).push([k?+k:0,d])});
+  const out=[];g.forEach((list,b)=>{const p0=(list.find(x=>x[0]===0)||[])[1];if(!p0||!Array.isArray(p0.codes))return;let r=[];
+    for(let k=0;k<(p0.parts||1);k++){const x=list.find(y=>y[0]===k&&y[1].up===p0.up);if(!x)return;r=r.concat(x[1].r||[])}
+    out.push({key:p0[f]||b,codes:p0.codes,locs:p0.locs||[],dates:p0.dates||[],r})});
+  return out.sort((a,b)=>a.key<b.key?-1:1)}
+/* order depot (for forecast and sale) and mother depots of a loss location */
+function lossMap(){const cfg=S.D.cfg,MD=new Map((S.mdmap||[]).map(r=>[Core.key(r.loc),r]));
+  const depOf=loc=>{const r=MD.get(Core.key(loc));if(r&&r.dep){const k=Core.key(r.dep),d=cfg.depots.find(x=>Core.key(x.id)===k||Core.key(x.name)===k);if(d)return d.id}return Core.guessDep(loc,cfg)};
+  const mothers=loc=>{const r=MD.get(Core.key(loc));return r?[r.m1,r.m2].filter(Boolean):[]};return {depOf,mothers}}
+const lossMonths=()=>(S.mloss||[]).map(x=>x.key);
+const lossMonth=()=>{const ms=lossMonths();return ms.includes(S.rep.lsm)?S.rep.lsm:ms[ms.length-1]};
+const lossFcOpts=()=>[["cur","Current forecast"],...(S.arch||[]).map(a=>["m:"+a.month,"Past forecast "+monLabel(a.month)])];
+const lossFc=mo=>{const o=lossFcOpts().map(x=>x[0]);if(o.includes(S.rep.lsf))return S.rep.lsf;return o.includes("m:"+mo)&&mo!==curMonth()?"m:"+mo:"cur"};
+const lossSale=()=>S.rep.lss==="cur"||!S.meta.get("lsale")?"cur":"up";
+function lossData(){const mo=lossMonth(),fsel=lossFc(mo),ssel=lossSale(),lsl=S.rep.lsl||"",q=S.q.toLowerCase();
+  const key=[mo,fsel,ssel,lsl,q,JSON.stringify(S.f),S.unit,S.dst&&S.dst.length,(S.mloss||[]).length,JSON.stringify(S.mdmap||[]),S.res&&S.res.n,(S.arch||[]).length,S.lsaleV||0].join("|");
+  if(S.lossCache&&S.lossCache.key===key)return S.lossCache;
+  const DF=DFv(),it=DF.items,pos=new Map(it.code.map((c,i)=>[String(c),i])),FL=Core.lots(it),cs=CS(),lotOf=c=>{const i=pos.get(c);return i==null?1:(FL[i]||1)};
+  const nameOf=c=>{const i=pos.get(c);return i==null?"":it.name[i]},add=(m,k,v)=>m.set(k,(m.get(k)||0)+v);
+  /* MT forecast and MT sale by final code and order depot */
+  const fc=new Map(),sl=new Map(),mtOf=(mp,out)=>mp&&mp.forEach((doc,dep)=>{if(!doc||!Array.isArray(doc.codes)||!doc.fields)return;doc.fields.forEach((f,c)=>{if(Core.key(f)!=="mt")return;doc.codes.forEach((code,j)=>{const v=Core.at(doc,c,j);if(v)add(out,fcode(code)+"|"+dep,v)})})});
+  if(fsel==="cur")mtOf(DF.forecast,fc);else{const a=(S.arch||[]).find(x=>x.month===fsel.slice(2));if(a)for(let t=0;t<a.r.length;t+=4){if(Core.key(a.chs[a.r[t+2]])!=="mt")continue;add(fc,fcode(a.codes[a.r[t]])+"|"+a.deps[a.r[t+1]],a.r[t+3])}}
+  mtOf(ssel==="up"?S.D.lsale:DF.sale,sl);
+  const {depOf,mothers}=lossMap(),dmap=new Map((S.dst||[]).map(x=>[x.key,x]));if(!S.dstC)S.dstC=new Map();
+  const stockAt=d=>{if(S.dstC.has(d))return S.dstC.get(d);const x=dmap.get(d);let o=null;if(x){o=new Map();for(let t=0;t<x.r.length;t+=3){const lk=Core.key(x.locs[x.r[t+1]]);let m=o.get(lk);if(!m)o.set(lk,m=new Map());const c=fcode(x.codes[x.r[t]]);m.set(c,(m.get(c)||0)+x.r[t+2])}}S.dstC.set(d,o);return o};
+  const sq=(st,loc,c)=>(st.get(Core.key(loc))||new Map()).get(c)||0;
+  const allow=anyFilt()?new Set(S.wD.items.code.map(String)):null,rec=(S.mloss||[]).find(x=>x.key===mo),lines=[],locsAll=new Set();
+  if(rec)for(let t=0;t<rec.r.length;t+=4){const code=fcode(rec.codes[rec.r[t]]),loc=rec.locs[rec.r[t+1]],date=rec.dates[rec.r[t+2]],raw=rec.r[t+3];if(!(raw>0))continue;locsAll.add(loc);
+    if(allow&&!allow.has(code))continue;if(lsl&&Core.key(loc)!==lsl)continue;if(q&&!(code+" "+nameOf(code)+" "+loc).toLowerCase().includes(q))continue;
+    const dep=depOf(loc),F=fc.get(code+"|"+dep)||0,Sl=sl.get(code+"|"+dep)||0,st=stockAt(date),M=mothers(loc),dv=cs?lotOf(code):1;
+    const o={date,loc,code,dep,M,q:raw,F,Sl,ds:null,ms:null,r1:0,r2:0,r3:0,r4:0,nd:0,nm:0};let rest=raw;
+    if(st){o.ds=sq(st,loc,code);o.r1=Math.min(rest,Math.max(0,o.ds));rest-=o.r1}           /* 1. the depot had the stock */
+    if(rest>0&&Sl>=F){o.r4=rest;rest=0}                                                   /* 2. MT already billed the whole forecast */
+    if(rest>0&&!st){o.nd=rest;rest=0}
+    if(rest>0&&!M.length){o.nm=rest;rest=0}
+    if(rest>0){o.ms=M.reduce((s,m)=>s+sq(st,m,code),0);o.r2=Math.min(rest,Math.max(0,o.ms));o.r3=rest-o.r2}  /* 3. mother depot had it, else 4. it did not */
+    if(dv!==1)["q","F","Sl","ds","ms","r1","r2","r3","r4","nd","nm"].forEach(k=>{if(o[k]!=null)o[k]/=dv});
+    lines.push(o)}
+  const agg=()=>({q:0,r1:0,r2:0,r3:0,r4:0,nd:0,nm:0,n:0}),put=(m,k)=>{let a=m.get(k);if(!a)m.set(k,a=agg());return a},tot=agg(),byLoc=new Map(),byItem=new Map(),byDate=new Map();
+  lines.forEach(o=>[tot,put(byLoc,o.loc),put(byItem,o.code),put(byDate,o.date)].forEach(a=>{a.n++;a.q+=o.q;LR.forEach(([k])=>a[k]+=o[k])}));
+  return S.lossCache={key,mo,fsel,ssel,lines,tot,byLoc,byItem,byDate,nameOf,depOf,mothers,locsAll:[...locsAll].sort(),hasStock:dmap.size>0}}
+const mainReason=a=>{let b=null;LR.forEach(([k,l])=>{if(a[k]>0&&(!b||a[k]>a[b[0]]))b=[k,l]});return b?b[1]:""};
+const pctOfQ=(v,t)=>t?n0.format(v/t*100)+"%":"–";
+function viewLoss(){ensureLoss();const ms=S.mloss?lossMonths():[];
+  const bar0=`<div class="bar" style="margin-bottom:10px">${rvSel()}`;
+  if(S.lossErr&&!S.mloss)return bar0+`</div><div class="panel empty"><h2>The sale loss data could not be loaded</h2><p>${S.sess.canAdmin?"The online database does not allow this data yet. Update the database rules with the new rules file (steps in the setup guide), then reload the page.":"Ask the admin to finish the setup for this report."}</p></div>`;
+  if(!S.mloss||!S.dst||!S.arch)return bar0+`</div><div class="panel empty"><p>Loading the sale loss data…</p></div>`;
+  if(!ms.length)return bar0+`</div><div class="panel empty"><h2>No MT loss uploaded yet</h2><p>On the Data upload tab, under “Sale loss files”, upload the MT loss qty (date-wise), the date-wise stock and the mother depot list. The MT sale for sale loss is optional; without it the current MTD sale is used.</p><button class="btn pri" data-tab="updates">Go to Data upload</button></div>`;
+  const L=lossData(),T=L.tot,mo=L.mo,show=LR.filter(([k])=>k.startsWith("r")||T[k]>0);
+  const bar=bar0+`<label class="chk">Loss month <select id="lsm">${ms.map(m=>`<option value="${m}" ${m===mo?"selected":""}>${esc(monLabel(m))}</option>`).join("")}</select></label>
+    <label class="chk">Forecast <select id="lsf">${lossFcOpts().map(([v,l])=>`<option value="${v}" ${v===L.fsel?"selected":""}>${esc(l)}</option>`).join("")}</select></label>
+    <label class="chk">MT sale <select id="lss"><option value="up" ${L.ssel==="up"?"selected":""} ${S.meta.get("lsale")?"":"disabled"}>MT sale for sale loss${S.meta.get("lsale")?" ("+esc(when(S.meta.get("lsale").at))+")":" (not uploaded)"}</option><option value="cur" ${L.ssel==="cur"?"selected":""}>Current MTD sale</option></select></label>
+    <select id="lsl" aria-label="Location"><option value="">All locations</option>${L.locsAll.map(l=>`<option value="${esc(Core.key(l))}" ${S.rep.lsl===Core.key(l)?"selected":""}>${esc(l)}</option>`).join("")}</select>
+    <input class="grow" type="search" id="q" placeholder="Search final code, name or location" value="${esc(S.q)}" aria-label="Search">
+    ${Store.canSave()?`<button class="btn" data-act="dlloss">Download (Excel)</button>`:""}</div>
+  <p class="muted" style="margin-bottom:10px">Every lost pc in the MT loss file is given a reason, in this order: <b>1.</b> stock at the location on the same date covers it → <i>stock available but bill not done</i>; <b>2.</b> for the rest, if the MT sale already reached the MT forecast of the item at its order depot → <i>already billed 100% against forecast</i> (no MT forecast counts as 100% billed); <b>3.</b> stock at mother depot 1 + mother depot 2 on that date covers it → <i>stock not available at depot (SCM replenishment issue)</i>; <b>4.</b> anything left → <i>stock shortage at mother depot</i>. A lost qty can be split across reasons. Forecast: ${esc((lossFcOpts().find(x=>x[0]===L.fsel)||[,""])[1])}; MT sale: ${L.ssel==="up"?"MT sale for sale loss":"current MTD sale"}. Codes are counted by Final Code. Figures in ${UL()}.</p>`;
+  const kpi=`<div class="kpis kmini lossk"><div class="kpi"><div class="kl">MT loss, ${esc(monLabel(mo))}</div><div class="kv">${nq.format(T.q)}<small> ${UL()}</small></div><div class="kd muted">${n0.format(L.byItem.size)} items · ${n0.format(L.byLoc.size)} locations</div></div>${show.map(([k,l])=>`<div class="kpi"><div class="kl">${esc(l)}</div><div class="kv">${nq.format(T[k])}</div><div class="kd muted">${pctOfQ(T[k],T.q)} of the loss</div></div>`).join("")}</div>`;
+  const warn=[];if(!L.hasStock)warn.push("No date-wise stock is uploaded yet, so reasons that need stock show as “No stock data for the date”.");
+  if(T.nm>0)warn.push(`Some locations have no mother depot in the mother depot list: ${[...L.byLoc.entries()].filter(([,a])=>a.nm>0).map(([l])=>esc(l)).join(", ")}.`);
+  if(T.nd>0){const nd=[...L.byDate.entries()].filter(([,a])=>a.nd>0).map(([d])=>dmy(d));warn.push(`No stock uploaded for ${nd.length} loss date${nd.length>1?"s":""}: ${nd.slice(0,10).join(", ")}${nd.length>10?" …":""}.`)}
+  const head=["Location","Order depot","Mother depots","MT loss",...show.map(([,l])=>esc(l))];
+  const locRows=[...L.byLoc.entries()].sort((a,b)=>b[1].q-a[1].q).map(([l,a])=>[esc(l),esc((S.D.cfg.depots.find(d=>d.id===L.depOf(l))||{name:"–"}).name),esc(L.mothers(l).join(", ")||"–"),nq.format(a.q),...show.map(([k])=>`${nq.format(a[k])}<div class="mt">${pctOfQ(a[k],a.q)}</div>`)]);
+  locRows.push(["<b>Total</b>","","",`<b>${nq.format(T.q)}</b>`,...show.map(([k])=>`<b>${nq.format(T[k])}</b><div class="mt">${pctOfQ(T[k],T.q)}</div>`)]);
+  const MAX=300,items=[...L.byItem.entries()].sort((a,b)=>b[1].q-a[1].q);
+  const itT=`<div class="panel"><div class="scroll"><table><thead><tr><th>Final Code</th><th>Final Name</th><th class="n">MT loss</th>${show.map(([,l])=>`<th class="n">${esc(l)}</th>`).join("")}<th>Main reason</th></tr></thead><tbody>
+    ${items.slice(0,MAX).map(([c,a])=>`<tr><td class="mono">${esc(c)}</td><td>${esc(L.nameOf(c))}</td><td class="n"><b>${nq.format(a.q)}</b></td>${show.map(([k])=>`<td class="n">${a[k]?nq.format(a[k]):'<span class="muted">–</span>'}</td>`).join("")}<td>${esc(mainReason(a))}</td></tr>`).join("")}</tbody></table></div></div>
+    ${items.length>MAX?`<p class="muted" style="margin-top:8px">Showing the ${MAX} items with the biggest loss out of ${n0.format(items.length)}. Download for all items and the date-wise detail.</p>`:""}`;
+  if(!L.lines.length)return bar+`<div class="panel empty"><p>No MT loss${S.q||S.rep.lsl||anyFilt()?" for these filters":""} in ${esc(monLabel(mo))}.</p></div>`;
+  return bar+kpi+warn.map(w=>`<p class="notice" style="margin-bottom:10px">${w}</p>`).join("")+`<div class="panel pad hscroll" style="margin-bottom:12px"><h3 style="margin:0">By location</h3>${tbl(head,locRows)}</div>`+
+    `<p class="muted" style="margin:0 0 8px">${n0.format(items.length)} items, biggest loss first.</p>`+itT}
+function saveLoss(){const L=lossData(),show=LR.filter(([k])=>k.startsWith("r")||L.tot[k]>0),r=v=>v==null?"":+(+v).toFixed(2),U=UH(),cfg=S.D.cfg,dn=id=>(cfg.depots.find(d=>d.id===id)||{name:id}).name;
+  const pc=(v,t)=>t?+(v/t*100).toFixed(1):"",cols=a=>show.flatMap(([k])=>[r(a[k]),pc(a[k],a.q)]),hd=show.flatMap(([,l])=>[l,l+" %"]);
+  const sum=[["Reason",`Qty (${U})`,"% of MT loss"],...show.map(([k,l])=>[l,r(L.tot[k]),pc(L.tot[k],L.tot.q)]),["Total MT loss",r(L.tot.q),L.tot.q?100:""]];
+  const loc=[["Location","Order depot","Mother depots",`MT loss (${U})`,...hd,"Main reason"],...[...L.byLoc.entries()].sort((a,b)=>b[1].q-a[1].q).map(([l,a])=>[l,dn(L.depOf(l)),L.mothers(l).join(", "),r(a.q),...cols(a),mainReason(a)]),["Total","","",r(L.tot.q),...cols(L.tot),""]];
+  const item=[["Final Code","Final Name",`MT loss (${U})`,...hd,"Main reason"],...[...L.byItem.entries()].sort((a,b)=>b[1].q-a[1].q).map(([c,a])=>[c,L.nameOf(c),r(a.q),...cols(a),mainReason(a)])];
+  const date=[["Date",`MT loss (${U})`,...hd],...[...L.byDate.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([d,a])=>[dmy(d),r(a.q),...cols(a)])];
+  const det=[["Date","Location","Order depot","Final Code","Final Name",`MT loss (${U})`,"Stock at location","Mother depot 1","Mother depot 2","Stock at mother depots","MT forecast","MT sale","MT sale % of forecast",...show.map(([,l])=>l),"Main reason"],
+    ...L.lines.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.loc.localeCompare(b.loc)||b.q-a.q).map(o=>[dmy(o.date),o.loc,dn(o.dep),o.code,L.nameOf(o.code),r(o.q),r(o.ds),o.M[0]||"",o.M[1]||"",r(o.ms),r(o.F),r(o.Sl),o.F?+(o.Sl/o.F*100).toFixed(1):"",...show.map(([k])=>r(o[k])),mainReason(o)])];
+  save(`MT sale loss reasons ${monLabel(L.mo)} ${stamp()}.xlsx`,[["Summary",sum],["By location",loc],["By item",item],["By date",date],["Detail",det]])}
 function viewReports(){
   const R=S.res;if(!R)return need();
   {const vis=repVisible();if(!vis.length)return `<div class="panel empty"><p>All report types have been deleted.</p></div>`;if(!vis.some(([v])=>v===S.rep.view))S.rep.view=vis[0][0]}
@@ -1623,6 +1864,7 @@ function viewReports(){
   if(S.rep.view==="mtl")return viewMtLow();
   if(S.rep.view==="oc")return viewOC();
   if(S.rep.view==="fa")return viewFA();
+  if(S.rep.view==="loss")return viewLoss();
   const F=S.fvsCache||(S.fvsCache=Core.fvs(R)),it=S.wD.items,rp=S.rep,gone=monthGone(),hasSale=!!S.meta.get("sale");
   const chs=[...new Set(F.map(r=>r.ch))],depOk=r=>!rp.dep||R.depots[r.k].id===rp.dep,chOk=r=>!rp.ch||r.ch===rp.ch;
   const cls=p=>p==null?"":p<gone*0.8?"behind":p>gone*1.2?"ahead":"";
@@ -1861,6 +2103,7 @@ document.addEventListener("click",async e=>{
   else if(a==="dlmtl")saveMtLow();
   else if(a==="dloc")saveOC();
   else if(a==="dlfa")saveFA();
+  else if(a==="dlloss")saveLoss();
   else if(a==="send")doSend();
   else if(a==="mailcur")mailCurrent(t);
   else if(a==="sendcopy")doCopySend();
@@ -1935,6 +2178,10 @@ document.addEventListener("change",e=>{const t=e.target;
   else if(t.id==="fad"){S.rep.fad=t.value;render()}
   else if(t.id==="fach"){S.rep.fach=t.value;render()}
   else if(t.id==="fam"){S.rep.fam=t.value;render()}
+  else if(t.id==="lsm"){S.rep.lsm=t.value;render()}
+  else if(t.id==="lsf"){S.rep.lsf=t.value;render()}
+  else if(t.id==="lss"){S.rep.lss=t.value;render()}
+  else if(t.id==="lsl"){S.rep.lsl=t.value;render()}
   else if(t.id==="fd"){S.fv.dep=t.value;render()}
   else if(t.id==="cst"){S.rep.cst=t.value;render()}
   else if(t.id==="fc"){S.fv.ch=t.value;render()}
