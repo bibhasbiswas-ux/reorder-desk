@@ -386,7 +386,7 @@ let long=false,hasHead=false;
     if(p.kind==="items")return [{col:"master",id:"items",data:{...p.cols,...stamp}},{col:"meta",id:"items",data:{...stamp,rows:p.n,depots:[]}}];
     const pack=(fields,v)=>{const o={};v.forEach((a,j)=>o["c"+j]=a);return {codes:p.codes,fields,v:o,...stamp}};
     const out=[];p.depots.forEach((d,id)=>out.push({col:p.kind,id,data:p.kind==="factory"?{...pack(d.fields,d.v),od:p.orderDate||""}:pack(d.fields,d.v)}));
-    if(p.kind==="po"){const pd=p.podate;if(pd)pd.depots.forEach((d,id)=>out.push({col:"podate",id,data:{codes:pd.codes,fields:d.fields,v:Object.fromEntries(d.v.map((a,j)=>["c"+j,a])),...stamp}}));
+    if(p.kind==="po"){const pd=p.podate;if(pd)pd.depots.forEach((d,id)=>out.push({col:"podate",id,data:{...sparse(pd.codes,d.v),fields:d.fields,...stamp}}));
       else out.push({col:"podate",id:"_none",data:{none:true,...stamp}})}
     if(p.fg)out.push({col:"stock",id:"_fg",data:pack(["FG"],[p.fg])});
     out.push({col:"meta",id:p.kind,data:{...stamp,rows:p.n,depots:p.kind==="fg"||p.kind==="dplan"||p.kind==="ecomsku"?[]:[...p.depots.keys()],...(p.kind==="factory"?{od:p.orderDate||""}:{})}});
@@ -487,19 +487,26 @@ let long=false,hasHead=false;
   /* size as the online database counts it (every number takes 8 bytes), so a part never goes over its 1 MB limit */
   const FS_BYTES=400000;function fsSize(x){if(x==null)return 1;if(typeof x==="number"||typeof x==="boolean")return 8;if(typeof x==="string")return x.length+1;
     if(Array.isArray(x)){let s=0;for(let i=0;i<x.length;i++)s+=fsSize(x[i]);return s}let s=32;for(const k in x)s+=k.length+1+fsSize(x[k]);return s}
+  /* PO dates are mostly empty, so they are kept as [item, date, qty, ...] for items that have a PO; merge() turns them back into columns */
+  function sparse(codes,cols){const used=[],pos=new Map(),s=[];for(let j=0;j<codes.length;j++)for(let c=0;c<cols.length;c++){const q=+(cols[c]||[])[j]||0;if(!q)continue;if(!pos.has(j)){pos.set(j,used.length);used.push(codes[j])}s.push(pos.get(j),c,q)}
+    return {codes:used,s,sp:1}}
+  function unsparse(d){if(!d||!d.sp)return d;const n=d.codes.length,v={};(d.fields||[]).forEach((_,c)=>v["c"+c]=new Array(n).fill(0));const s=d.s||[];for(let t=0;t<s.length;t+=3){const a=v["c"+s[t+1]];if(a)a[s[t]]+=s[t+2]}
+    const o={...d,v};delete o.s;delete o.sp;return o}
   function splitDocs(docs,up){const out=[];
     docs.forEach(({col,id,data})=>{const isDepot=Array.isArray(data.codes),n=isDepot?data.codes.length:(data.code||[]).length,parts=Math.max(1,Math.ceil(JSON.stringify(data).length/PART_BYTES),Math.ceil(fsSize(data)/FS_BYTES)),per=Math.ceil(n/parts)||1;
       for(let k=0;k<parts;k++){const a=k*per,b=a+per,d={...data,part:k,parts,up};
-        if(isDepot){d.codes=data.codes.slice(a,b);d.v={};Object.keys(data.v).forEach(c=>d.v[c]=data.v[c].slice(a,b))}
+        if(isDepot&&data.sp){d.codes=data.codes.slice(a,b);const s=[];for(let t=0;t<data.s.length;t+=3){const j=data.s[t];if(j>=a&&j<b)s.push(j-a,data.s[t+1],data.s[t+2])}d.s=s}
+        else if(isDepot){d.codes=data.codes.slice(a,b);d.v={};Object.keys(data.v).forEach(c=>d.v[c]=data.v[c].slice(a,b))}
         else ITEM_COLS.forEach(([f])=>{if(Array.isArray(data[f]))d[f]=data[f].slice(a,b)});
         out.push({col,id:k?id+"~"+k:id,data:d})}});
     return out}
   function merge(m){const groups=new Map(),out=new Map();
     m.forEach((d,id)=>{const [base,pk]=String(id).split("~");if(!groups.has(base))groups.set(base,[]);groups.get(base).push([pk?+pk:0,d])});
     groups.forEach((list,base)=>{const p0=(list.find(x=>x[0]===0)||[])[1];if(!p0)return;
-      if(!p0.parts||p0.parts===1){out.set(base,p0);return}
+      if(!p0.parts||p0.parts===1){out.set(base,unsparse(p0));return}
       const parts=[];for(let k=0;k<p0.parts;k++){const x=list.find(y=>y[0]===k&&y[1].up===p0.up);if(!x)return;parts.push(x[1])}
       const d={...p0};
+      if(p0.sp){let off=0;d.s=[];parts.forEach(p=>{const s=p.s||[];for(let t=0;t<s.length;t+=3)d.s.push(s[t]+off,s[t+1],s[t+2]);off+=p.codes.length});d.codes=parts.flatMap(p=>p.codes);out.set(base,unsparse(d));return}
       if(Array.isArray(p0.codes)){d.codes=parts.flatMap(p=>p.codes);d.v={};Object.keys(p0.v).forEach(c=>d.v[c]=parts.flatMap(p=>p.v[c]))}
       else ITEM_COLS.forEach(([f])=>{if(Array.isArray(p0[f]))d[f]=parts.flatMap(p=>p[f])});
       out.set(base,d)});
