@@ -845,6 +845,14 @@ function factorySummary(p){const out=[],withData=[...p.depots.entries()].filter(
   p.warn.forEach(w=>out.push(`<p class="notice">${esc(w)}</p>`));
   if(S.D.items){const have=knownCodes(),extra=p.codes.filter(c=>!have.has(String(c))).length;if(extra)out.push(`<p class="notice">${n0.format(extra)} item codes are not in the item master, so they are left out of the report.</p>`)}
   return out}
+/* the stock file can hold every item; only MT items are kept (MT forecast, MT sale, MT open PO or any MT loss), as only they can have an MT loss */
+function mtSet(){const s=new Set(),DF=DFv(),mt=mp=>mp&&mp.forEach(doc=>{if(!doc||!Array.isArray(doc.codes)||!doc.fields)return;doc.fields.forEach((f,c)=>{if(Core.key(f)!=="mt")return;doc.codes.forEach((code,j)=>{if(Core.at(doc,c,j))s.add(fcode(code))})})});
+  mt(DF.forecast);mt(DF.sale);mt(DF.po);mt(S.D.lsale);(S.arch||[]).forEach(a=>{for(let t=0;t<a.r.length;t+=4)if(Core.key(a.chs[a.r[t+2]])==="mt"&&a.r[t+3])s.add(fcode(a.codes[a.r[t]]))});
+  (S.mloss||[]).forEach(x=>x.codes.forEach(c=>s.add(fcode(c))));return s}
+function mtOnly(p){const keep=mtSet();if(keep.size<50)return;let kept=new Set();
+  p.byDate.forEach((D,d)=>{const codes=[],map=new Map(),r=[];D.codes.forEach((c,ci)=>{if(keep.has(fcode(c))){map.set(ci,codes.length);codes.push(c);kept.add(String(c))}});
+    for(let t=0;t<D.r.length;t+=3){const ni=map.get(D.r[t]);if(ni!=null)r.push(ni,D.r[t+1],D.r[t+2])}p.byDate.set(d,{codes,r})});
+  p.allCodes=p.n;p.codes=[...kept];p.n=kept.size}
 function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=S.D.items?knownCodes():null,miss=c=>have?c.filter(x=>!have.has(String(x))).length:0;
   if(p.kind==="mdmap"){const dk=new Set(cfg.depots.flatMap(d=>[Core.key(d.id),Core.key(d.name)])),stk=new Set(((S.dst&&S.dst[S.dst.length-1])||{locs:[]}).locs.map(Core.key));
     out.push(`<p><b>${n0.format(p.n)} locations</b>.</p><div class="hscroll">${tbl(["Location","Order depot","Mother depot 1","Mother depot 2"],p.rows.map(r=>[esc(r.loc),esc(r.dep||"(auto) "+((cfg.depots.find(d=>d.id===Core.guessDep(r.loc,cfg))||{name:"–"}).name)),esc(r.m1||"–"),esc(r.m2||"–")]))}</div>`);
@@ -852,8 +860,9 @@ function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=
     if(stk.size){const badM=[...new Set(p.rows.flatMap(r=>[r.m1,r.m2]).filter(m=>m&&!stk.has(Core.key(m))))];if(badM.length)out.push(`<p class="notice">Mother depots not found as a location in the date-wise stock: ${badM.map(esc).join(", ")}. Write them as in the stock file.</p>`)}
     const noM=p.rows.filter(r=>!r.m1&&!r.m2).length;if(noM)out.push(`<p class="muted">${noM} locations have no mother depot.</p>`);
     out.push(`<p class="muted">This list replaces the earlier one.</p>`);return out}
-  if(p.kind==="dstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}.</p>`,
+  if(p.kind==="dstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.allCodes||p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}.</p>`,
       `<p class="muted">These dates replace any stock already saved for them; other dates stay.</p>`);
+    if(p.allCodes&&p.allCodes>p.n)out.push(`<p class="muted">Only MT items are kept: <b>${n0.format(p.n)}</b> of ${n0.format(p.allCodes)} codes (items with an MT forecast, MT sale, MT open PO or MT loss). The others cannot have an MT loss, so they are left out to keep the page fast.</p>`);
     if(p.badDates)out.push(`<p class="notice">${n0.format(p.badDates)} rows skipped because the Date could not be read.</p>`);
     const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} codes are not in the item master.</p>`);return out}
   if(p.kind==="mtloss"){const noDep=p.locs.filter(l=>!depOf(l)),noM=p.locs.filter(l=>!mothers(l).length);
@@ -917,13 +926,14 @@ function readFile(kind,file){
     if(p.error)throw new Error(p.error);
     if(!p.n)throw new Error("No item rows were found under the headings.");
     if(kind==="items"&&!p.found.includes("Item name"))throw new Error("No 'Item name' column was found.");
+    if(kind==="dstock")mtOnly(p);
     const out=summary(p);S.pending={p,kind,file:file.name,out};
     $("upBody").innerHTML=`<p class="muted">Check the figures below, then press Save. Nothing is stored until you do.</p>`+out.join("");
     $("upSave").disabled=!S.sess.canWrite;if(!S.sess.canWrite)$("upBody").insertAdjacentHTML("beforeend",`<p class="notice">You do not have permission to upload.</p>`);
   }catch(e){$("upBody").innerHTML=`<p class="notice">${esc(e.message||"That file could not be read.")}</p><p class="muted">Nothing was saved. Fix the file and upload it again.</p>`;$("upSave").hidden=true}},50);
 }
 async function savePending(){
-  const x=S.pending;if(!x)return;$("upSave").disabled=true;$("upSave").textContent="Saving…";$("upDone").disabled=true;
+  const x=S.pending;if(!x)return;$("upBody").querySelectorAll(".errn").forEach(e=>e.remove());$("upSave").disabled=true;$("upSave").textContent="Saving…";$("upDone").disabled=true;
   if(x.p.kind==="fcarch"){try{const mo=($("upMon")||{}).value;if(!/^\d{4}-\d{2}$/.test(mo||""))throw Object.assign(new Error("Pick the month."),{od:1});
       const ents=[];x.p.depots.forEach((d,id)=>{if(d.fields.length)ents.push({dep:id,codes:x.p.codes,fields:d.fields,vals:d.v})});
       await saveArch(mo,ents);const m=S.meta.get("fcarch")||{};await Store.setMany([{col:"meta",id:"fcarch",data:{at:new Date().toISOString(),by:S.me||"",file:x.file,rows:x.p.n,depots:[],lastMonth:mo,months:[...new Set([...(m.months||[]),mo])].sort()}}]);
@@ -946,7 +956,7 @@ async function savePending(){
     $("upBody").innerHTML=`<p><span class="pill ok">Saved</span> Orders, the master file and reports have been worked out again.</p>`+x.out.join("");
     $("upSave").hidden=true;$("upDone").textContent="Done";
   }catch(e){$("upSave").disabled=false;$("upSave").textContent="Save";
-    $("upBody").insertAdjacentHTML("afterbegin",`<p class="notice">${e&&e.od?"Pick the order date, then press Save.":Store.denied(e)?"You do not have permission to upload.":"Could not save the upload. Check your connection and press Save again."}</p>${e&&e.message&&!e.od?`<p class="muted">Details: ${esc(String(e.message).slice(0,200))}</p>`:""}`)}
+    $("upBody").insertAdjacentHTML("afterbegin",`<div class="errn"><p class="notice">${e&&e.od?"Pick the order date, then press Save.":Store.denied(e)?(["dstock","mtloss","lsale"].includes(x.p.kind)&&S.sess.canAdmin?"The online database does not allow this file yet. In Firebase, open Firestore Database → Rules, paste the new rules and press Publish, then Save again.":"You do not have permission to upload."):"Could not save the upload. Check your connection and press Save again."}</p>${e&&e.message&&!e.od?`<p class="muted">Details: ${esc(String(e.message).slice(0,200))}</p>`:""}</div>`)}
   finally{$("upDone").disabled=false}
 }
 
