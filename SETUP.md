@@ -52,7 +52,7 @@ Each upload is checked first and a summary is shown. Nothing is stored until the
 
 | Upload | Layout |
 | --- | --- |
-| Item master | One sheet: Item Code, Item Name, Brand, Category, Sub-Category, Location, Status, Case Lot, Case Wgt, CBM, MRP, POC, Size. |
+| Item master | One sheet: Item number, Item name, Brand, Item Type, Final Code, Final Item Name, BOM, SCM PIC, Item Status, Case Lot, Case Wgt., MRP, Location, Length CM, Breath CM, Height CM, CBM, Category, Sub Category. SCM PIC is used for the POC filter. A blank CBM is worked out as Length x Breath x Height (cm) / 1,000,000. |
 | Forecast | One sheet: Item Code, Item Name, then one column per channel and depot, such as `AVT | Chennai`, `AVT | Coimbatore`. Monthly forecast in cases. |
 | Direct sale forecast | Same layout as the forecast. The part of the forecast planned as direct sale from the plant. It is taken off the forecast, channel by channel, before orders and reports are worked out. |
 | Daily stock | Three sheets named `Phy`, `Transit` and `Reserve`. Each has Item Code, Item Name, then one column per depot. An optional `Plant FG` column on the Phy sheet switches on the Plant stock tab. |

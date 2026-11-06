@@ -202,10 +202,14 @@ const Core=(()=>{
   const STOCKF=["Physical","Transit","Reserved"];
   const STOCK_SYN={physical:0,phy:0,phystock:0,actualphy:0,physicalstock:0,stock:0,transit:1,transitstock:1,intransit:1,reserved:2,reserve:2,reservedstock:2,reservestock:2,stockreservedforsale:2};
   const FG_KEYS=new Set(["plantfg","myrafg","fg","fgstock","plantstock","myraphplfg","plantfgstock"]);
-  const ITEM_COLS=[["code","Item Code",["itemcode","code","sku","item"]],["name","Item Name",["itemname","name","description","itemdescription"]],["brand","Brand",["brand"]],["cat","Category",["category"]],
-    ["sub","Sub-Category",["subcategory"]],["loc","Location",["location","loc"]],["status","Status",["status"]],["csLot","Case Lot",["caselot","cslot"]],["wgt","Case Wgt",["casewgt","caseweight","casewt","weight"]],
-    ["cbm","CBM",["cbm"]],["mrp","MRP",["mrp"]],["poc","POC",["poc","personincharge"]],["size","Size",["size"]]];
-  const NUMCOLS=new Set(["csLot","wgt","cbm","mrp"]);
+  /* item master columns, in template order: [field, heading, accepted heading keys] */
+  const ITEM_COLS=[["code","Item number",["itemnumber","itemno","itemcode","code","sku","item"]],["name","Item name",["itemname","name","description","itemdescription"]],["brand","Brand",["brand"]],
+    ["itype","Item Type",["itemtype","type"]],["fcode","Final Code",["finalcode"]],["fname","Final Item Name",["finalitemname","finalname"]],["bom","BOM",["bom"]],
+    ["poc","SCM PIC",["scmpic","pic","poc","personincharge"]],["status","Item Status",["itemstatus","status"]],["csLot","Case Lot",["caselot","cslot"]],
+    ["wgt","Case Wgt.",["casewgt","caseweight","casewt","weight"]],["mrp","MRP",["mrp"]],["loc","Location",["location","loc"]],
+    ["len","Length CM",["lengthcm","length","lencm"]],["bre","Breath CM",["breathcm","breadthcm","breath","breadth","widthcm","width"]],["hei","Height CM",["heightcm","height"]],
+    ["cbm","CBM",["cbm"]],["cat","Category",["category"]],["sub","Sub Category",["subcategory"]]];
+  const NUMCOLS=new Set(["csLot","wgt","cbm","mrp","len","bre","hei"]);
   const CODE_KEYS=ITEM_COLS[0][2],IGNORE=new Set(ITEM_COLS.flatMap(c=>c[2]));
 
   function headerRow(grid){for(let r=0;r<Math.min(grid.length,20);r++){const ks=(grid[r]||[]).map(key),c=ks.findIndex(k=>CODE_KEYS.includes(k));if(c>=0)return {r,c,ks}}return null}
@@ -219,7 +223,9 @@ const Core=(()=>{
     for(let r=h.r+1;r<grid.length;r++){const row=grid[r]||[],code=String(row[h.c]??"").trim();if(!code)continue;
       if(seen.has(code)){dups++;rows[seen.get(code)]=row}else{seen.set(code,rows.length);rows.push(row)}}
     const cols={};ITEM_COLS.forEach(([f])=>{const c=map[f];cols[f]=rows.map(row=>c<0?(NUMCOLS.has(f)?0:""):NUMCOLS.has(f)?num(row[c]):String(row[c]??"").trim())});
-    return {kind:"items",n:rows.length,cols,found,missing,dups};
+    /* CBM per case: as given, or length × breadth × height (cm) ÷ 1,000,000 when left blank */
+    let cbmCalc=0;cols.cbm=cols.cbm.map((v,i)=>{if(v>0)return v;const x=cols.len[i]*cols.bre[i]*cols.hei[i];if(x>0){cbmCalc++;return +(x/1e6).toFixed(6)}return v});
+    return {kind:"items",n:rows.length,cols,found,missing,dups,cbmCalc};
   }
 
   const DEPOT_KEYS=["depot","location","loc","branch","warehouse","depotname","depo"];
@@ -349,7 +355,7 @@ let long=false,hasHead=false;
     return {kind:kind||"fg",codes,n:codes.length,depots:new Map([["all",{fields:[kind==="dplan"?"Plan":"FG"],v:[v]}]]),replaceAll:true,fg:null,unknown:[],badDepots:[],warn,sheets:used,ctn:cs,pcs}}
 
   /* sales history: one row per item, month, channel and depot (pcs). Stored per month and depot; an upload replaces only the months in it. */
-  const MONTH_KEYS=["month","mon","period","salemonth","salesmonth","monthyear","yearmonth","bom","date","invoicedate","billingdate","billdate","saledate"];
+  const MONTH_KEYS=["month","mon","period","salemonth","salesmonth","monthyear","yearmonth","date","invoicedate","billingdate","billdate","saledate","bom"];
   const MON3="janfebmaraprmayjunjulaugsepoctnovdec";
   function monthOf(v){if(v==null||v==="")return null;const p=n=>String(n).padStart(2,"0"),d=isoDate(v);if(d)return d.slice(0,7);
     const s=String(v).trim();let m=s.match(/^(\d{4})[-\/. ](\d{1,2})$/);if(m&&+m[2]>=1&&+m[2]<=12)return `${m[1]}-${p(m[2])}`;
@@ -359,7 +365,7 @@ let long=false,hasHead=false;
     return null}
   function parseHist(sheets,cfg){const DI=depotIndex(cfg),known=cfg.saleCh||[],byM=new Map(),bad=new Set(),warn=[],used=[];let rows=0,noMonth=0,hasHead=false,total=0;const codes=new Set();
     for(const s of sheets){const h=headerRow(s.grid);if(!h)continue;hasHead=true;const f=keys=>h.ks.findIndex((k,i)=>i!==h.c&&keys.includes(k));
-      const dc=f(DEPOT_KEYS),cc=f(CH_KEYS),mc=f(MONTH_KEYS);let qc=f(QTY_KEYS);if(qc<0)qc=h.ks.findIndex((k,i)=>i!==h.c&&/qty|quantity/.test(k));
+      const dc=f(DEPOT_KEYS),cc=f(CH_KEYS);let mc=-1;for(const mk of MONTH_KEYS){mc=h.ks.findIndex((k,i)=>i!==h.c&&k===mk);if(mc>=0)break}  /* first by priority: Month before Date before BOM */let qc=f(QTY_KEYS);if(qc<0)qc=h.ks.findIndex((k,i)=>i!==h.c&&/qty|quantity/.test(k));
       if(dc<0||cc<0||mc<0||qc<0){warn.push(`Sheet “${s.name}” needs Month, Sales Channel, Depot and Qty columns, so it was not read.`);continue}used.push(s.name);
       for(let r=h.r+1;r<s.grid.length;r++){const row=s.grid[r]||[],code=String(row[h.c]??"").trim();if(!code)continue;
         const mo=monthOf(row[mc]);if(!mo){noMonth++;continue}const dn=String(row[dc]??"").trim(),dep=DI.exact.get(key(dn));if(!dep){bad.add(dn||"(blank)");continue}
@@ -438,16 +444,16 @@ let long=false,hasHead=false;
     return {aoa,merges,blockLen:block.length,baseLen:base.length};
   }
   /* order sheet with both units; unit says what d.qty holds ("pcs" or "cs") */
-  function orderAoa(D,res,k,unit){const it=D.items,d=res.depots[k],L=lots(it),rows=[["Item Code","Item Name","Brand","Category","Size","Case Lot","Order (Pcs)","Order (Cases)","CBM","Weight (kg)"]];
-    for(let i=0;i<res.n;i++)if(d.qty[i]>0){const pcs=unit==="cs"?d.qty[i]*L[i]:d.qty[i],cs=pcs/L[i];rows.push([it.code[i],it.name[i],it.brand[i],it.cat[i],it.size[i],L[i],Math.round(pcs),+cs.toFixed(3),+(cs*it.cbm[i]).toFixed(3),+(cs*it.wgt[i]).toFixed(1)])}return rows}
+  function orderAoa(D,res,k,unit){const it=D.items,d=res.depots[k],L=lots(it),rows=[["Item Code","Item Name","Brand","Category","Case Lot","Order (Pcs)","Order (Cases)","CBM","Weight (kg)"]];
+    for(let i=0;i<res.n;i++)if(d.qty[i]>0){const pcs=unit==="cs"?d.qty[i]*L[i]:d.qty[i],cs=pcs/L[i];rows.push([it.code[i],it.name[i],it.brand[i],it.cat[i],L[i],Math.round(pcs),+cs.toFixed(3),+(cs*it.cbm[i]).toFixed(3),+(cs*it.wgt[i]).toFixed(1)])}return rows}
   function templateBook(kind,D){
     const cfg=D.cfg,items=D.items?D.items.code.map((c,i)=>[c,D.items.name[i]]):[],dn=cfg.depots.map(d=>d.name);
     const lists=extra=>["Lists",[["Depot",...extra.map(e=>e[0])],...dn.map((d,i)=>[d,...extra.map(e=>e[1][i]??"")])]];
     if(kind==="items")return [["Item master",[ITEM_COLS.map(c=>c[1])]]];
     if(kind==="forecast"||kind==="direct"){const head=["Item Code","Item Name"];cfg.fcCh.forEach(ch=>dn.forEach(d=>head.push(ch+" | "+d)));return [[kind==="direct"?"Direct sale forecast":"Forecast",[head,...items]]]}
     if(kind==="stock")return [["Phy",[["Item Code","Item Name",...dn,"Plant FG"],...items]],["Transit",[["Item Code","Item Name",...dn],...items]],["Reserve",[["Item Code","Item Name",...dn],...items]]];
-    if(kind==="factory"){const it=D.items,head=["Item Code","Item Name","Brand","Category","Sub-Category","Size","Case Wgt","CBM","Case Lot",...dn];
-      return [["Factory order",[head,...(it?it.code.map((c,i)=>[c,it.name[i],it.brand[i],it.cat[i],it.sub[i],it.size[i],it.wgt[i],it.cbm[i],it.csLot[i]]):[])]]]}
+    if(kind==="factory"){const it=D.items,head=["Item Code","Item Name","Brand","Category","Sub-Category","Case Wgt","CBM","Case Lot",...dn];
+      return [["Factory order",[head,...(it?it.code.map((c,i)=>[c,it.name[i],it.brand[i],it.cat[i],it.sub[i],it.wgt[i],it.cbm[i],it.csLot[i]]):[])]]]}
     if(kind==="fg")return [["Factory FG",[["Item Code","FG Qty (Cases)"],...items.map(r=>[r[0]])]]];
     if(kind==="fcarch")return templateBook("forecast",D);
     if(kind==="hsale")return [["Sales history",[["Item Code","Item Name","Month","Sales Channel","Depot","Qty"]]],lists([["Sales Channel",cfg.saleCh]])];
@@ -611,7 +617,7 @@ const when=iso=>{const d=new Date(iso),t=d.toLocaleTimeString("en-IN",{hour:"num
 const isToday=iso=>new Date(iso).toDateString()===new Date().toDateString();
 function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,4500)}
 const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"];
-const HELP={items:"Item Code, Item Name, Brand, Category, Sub-Category, Location, Status, Case Lot, Case Wgt, CBM, MRP, POC, Size. Upload again when items change.",
+const HELP={items:"Item number, Item name, Brand, Item Type, Final Code, Final Item Name, BOM, SCM PIC, Item Status, Case Lot, Case Wgt., MRP, Location, Length CM, Breath CM, Height CM, CBM, Category, Sub Category. SCM PIC drives the POC filter; a blank CBM is worked out from the carton size. Upload again when items change.",
   forecast:"One sheet: item code and name, then a column per channel and depot, such as “AVT | Chennai”. Total monthly forecast in pcs.",
   direct:"Same layout as the forecast. The part of the forecast planned as direct sale from the plant. It is taken off the forecast, channel by channel, before orders and reports are worked out.",
   stock:"Three sheets: Phy, Transit and Reserve. Each has item code and name, then a column per depot. Plant FG goes on the Phy sheet. Upload every day.",
@@ -730,7 +736,8 @@ function summary(p){if(p.kind==="fcarch"){const d=new Date(),pm=`${d.getMonth()?
     if(S.D.items){const have=new Set(S.D.items.code.map(String)),extra=p.codes.filter(c=>!have.has(String(c))).length;if(extra)out.push(`<p class="notice">${n0.format(extra)} item codes are not in the item master, so they are left out of the report.</p>`)}
     return out}const out=[],cfg=S.D.cfg,label=Core.KINDS[p.kind].label;
   if(p.kind==="items"){out.push(`<p><b>${n0.format(p.n)} items</b> in the item master.</p>`);
-    if(p.missing.length)out.push(`<p class="notice">Columns not found, left blank: ${p.missing.map(esc).join(", ")}.${p.missing.includes("CBM")||p.missing.includes("Case Wgt")?" Without CBM and case weight the load figures will be zero.":""}</p>`);
+    if(p.missing.length)out.push(`<p class="notice">Columns not found, left blank: ${p.missing.map(esc).join(", ")}.${p.missing.includes("CBM")&&p.missing.includes("Length CM")||p.missing.includes("Case Wgt.")?" Without CBM (or the carton size) and case weight the load figures will be zero.":""}</p>`);
+    if(p.cbmCalc)out.push(`<p class="muted">${n0.format(p.cbmCalc)} items had no CBM, so it was worked out from Length × Breath × Height (cm) ÷ 1,000,000.</p>`);
   }else{const withData=[...p.depots.entries()].filter(([,d])=>d.fields.length),fields=new Set();withData.forEach(([,d])=>d.fields.forEach(f=>fields.add(f)));
     out.push(`<p><b>${n0.format(p.n)} items</b> for <b>${withData.length} depots</b>${p.sheets.length>1?` from sheets ${p.sheets.map(esc).join(", ")}`:""}. ${p.kind==="stock"?"Stock":"Channels"}: ${[...fields].map(esc).join(", ")}${p.fg?", Plant FG":""}.</p>`);
     if(p.replaceAll)out.push(`<p class="muted">This file replaces all earlier ${esc(label)} figures. Depots and items not in it now count as zero.</p>`);
@@ -760,7 +767,7 @@ function readFile(kind,file){
     const p=Core.parseUpload(kind,sheets,S.D.cfg,{lotOf:c=>lp.get(String(c))||0});
     if(p.error)throw new Error(p.error);
     if(!p.n)throw new Error("No item rows were found under the headings.");
-    if(kind==="items"&&!p.found.includes("Item Name"))throw new Error("No 'Item Name' column was found.");
+    if(kind==="items"&&!p.found.includes("Item name"))throw new Error("No 'Item name' column was found.");
     const out=summary(p);S.pending={p,kind,file:file.name,out};
     $("upBody").innerHTML=`<p class="muted">Check the figures below, then press Save. Nothing is stored until you do.</p>`+out.join("");
     $("upSave").disabled=!S.sess.canWrite;if(!S.sess.canWrite)$("upBody").insertAdjacentHTML("beforeend",`<p class="notice">You do not have permission to upload.</p>`);
@@ -853,7 +860,7 @@ function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Ma
         else rows=(byCh.get(x)||{rows:[]}).rows.map(r=>[...r,""]);sheets.push([ch.slice(0,28),[["Item Code","Item Name","Depot","PO Qty","PO Date"],...rows]])}
       else sheets.push([ch.slice(0,28),[["Item Code","Item Name","Depot","PO Qty"],...((byCh.get(x)||{rows:[]}).rows)]]);byCh.delete(x)});
     byCh.forEach(v=>sheets.push([String(v.name).slice(0,28),[["Item Code","Item Name","Depot","PO Qty"],...v.rows]]))}
-  else if(k==="factory"){const attrs={head:["Brand","Category","Sub-Category","Size","Case Wgt","CBM","Case Lot"],row:c=>{const i=pos.get(String(c));return i==null?["","","","","","",""]:[it.brand[i],it.cat[i],it.sub[i],it.size[i],it.wgt[i],it.cbm[i],it.csLot[i]]}};
+  else if(k==="factory"){const attrs={head:["Brand","Category","Sub-Category","Case Wgt","CBM","Case Lot"],row:c=>{const i=pos.get(String(c));return i==null?["","","","","",""]:[it.brand[i],it.cat[i],it.sub[i],it.wgt[i],it.cbm[i],it.csLot[i]]}};
     sheets=[["Factory order",wide(D.factory,null,false,(q,c)=>q/lot(c),attrs)]];if(m&&m.od)extra=` order date ${dmy(m.od)}`}
   else if(k==="dispatch")sheets=[["Dispatch",long(D.dispatch,["Dispatch Date","Item Code","Item Name","Location","Qty (Cartons)"],(c,dep,f,q)=>[f==="nodate"?"":dmy(f),c,nm(c),dep.name,r4(q/lot(c))])]];
   else if(k==="fg"||k==="dplan"){const d=D[k]&&D[k].get("all"),rows=[];if(d)d.codes.forEach((c,j)=>rows.push([String(c),r4(val(d,0,j)/lot(c))]));
@@ -1035,8 +1042,8 @@ function viewForecast(){
   </tbody></table></div></div>${list.length>MAX?`<p class="muted" style="margin-top:10px">Showing ${MAX} of ${n0.format(list.length)} items on screen. Search to narrow the list. The download has all of them.</p>`:""}`;
 }
 function saveForecast(){const R=S.res,fv=S.fv,it=S.wD.items,G=fcGrid();
-  const head=["Item Code","Item Name","Brand","Category","Sub-Category","Size",...G.cols,"Total"],rows=[head];
-  for(let i=0;i<R.n;i++){if(fv.nz&&!G.tot[i])continue;rows.push([it.code[i],it.name[i],it.brand[i],it.cat[i],it.sub[i],it.size[i],...G.g.map(a=>a[i]),G.tot[i]])}
+  const head=["Item Code","Item Name","Brand","Category","Sub-Category",...G.cols,"Total"],rows=[head];
+  for(let i=0;i<R.n;i++){if(fv.nz&&!G.tot[i])continue;rows.push([it.code[i],it.name[i],it.brand[i],it.cat[i],it.sub[i],...G.g.map(a=>a[i]),G.tot[i]])}
   /* also every depot and channel side by side, in the upload layout */
   const chs=[];R.depots.forEach(d=>{const F=d.docs.forecast;if(F)F.fields.forEach(f=>{if(!chs.includes(f))chs.push(f)})});
   const wide=[["Item Code","Item Name",...chs.flatMap(c=>R.depots.map(d=>c+" | "+d.name))]];
