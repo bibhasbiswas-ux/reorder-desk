@@ -484,8 +484,11 @@ let long=false,hasHead=false;
   }
   /* Large uploads are stored as parts of PART rows each: "id", "id~1", "id~2"... all stamped with one upload id. */
   const PART=1000,PART_BYTES=150000;
+  /* size as the online database counts it (every number takes 8 bytes), so a part never goes over its 1 MB limit */
+  const FS_BYTES=400000;function fsSize(x){if(x==null)return 1;if(typeof x==="number"||typeof x==="boolean")return 8;if(typeof x==="string")return x.length+1;
+    if(Array.isArray(x)){let s=0;for(let i=0;i<x.length;i++)s+=fsSize(x[i]);return s}let s=32;for(const k in x)s+=k.length+1+fsSize(x[k]);return s}
   function splitDocs(docs,up){const out=[];
-    docs.forEach(({col,id,data})=>{const isDepot=Array.isArray(data.codes),n=isDepot?data.codes.length:(data.code||[]).length,parts=Math.max(1,Math.ceil(JSON.stringify(data).length/PART_BYTES)),per=Math.ceil(n/parts)||1;
+    docs.forEach(({col,id,data})=>{const isDepot=Array.isArray(data.codes),n=isDepot?data.codes.length:(data.code||[]).length,parts=Math.max(1,Math.ceil(JSON.stringify(data).length/PART_BYTES),Math.ceil(fsSize(data)/FS_BYTES)),per=Math.ceil(n/parts)||1;
       for(let k=0;k<parts;k++){const a=k*per,b=a+per,d={...data,part:k,parts,up};
         if(isDepot){d.codes=data.codes.slice(a,b);d.v={};Object.keys(data.v).forEach(c=>d.v[c]=data.v[c].slice(a,b))}
         else ITEM_COLS.forEach(([f])=>{if(Array.isArray(data[f]))d[f]=data[f].slice(a,b)});
@@ -570,7 +573,7 @@ let long=false,hasHead=false;
     return out}
   function snapshot(D,res){return {unit:"pcs",codes:D.items.code.map(String),depots:res.depots.map(d=>{const i=[],q=[];d.qty.forEach((x,j)=>{if(x>0){i.push(j);q.push(x)}});
     return {id:d.id,name:d.name,days:d.days,i,q,cases:d.cases,cs:+d.cs.toFixed(3),cbm:+d.cbm.toFixed(2)}})}}
-  return {consolidate,finalMap,remapDoc,num,key,up,defaults,KINDS,STOCKF,ITEM_COLS,parseItems,parseUpload,toDocs,compute,detail,masterAoa,orderAoa,templateBook,fvs,snapshot,STOCK_SYN,splitDocs,merge,staleParts,PART,coverage,netForecast,shortfall,at,lots,toCases,isoDate,monthOf};
+  return {fsSize,consolidate,finalMap,remapDoc,num,key,up,defaults,KINDS,STOCKF,ITEM_COLS,parseItems,parseUpload,toDocs,compute,detail,masterAoa,orderAoa,templateBook,fvs,snapshot,STOCK_SYN,splitDocs,merge,staleParts,PART,coverage,netForecast,shortfall,at,lots,toCases,isoDate,monthOf};
 })();
 /*CORE-END*/
 /* in-browser store used when nothing is connected: lets the page be tried, keeps nothing */
@@ -614,7 +617,11 @@ const Store=(()=>{
       signOut:()=>fb.signOut(auth)},
     watch(col,cb,err){if(mem)return mem.watch(col,cb);return fb.onSnapshot(fb.collection(fs,col),s=>{const m=new Map();s.forEach(d=>m.set(d.id,d.data()));cb(m)},err)},
     async setMany(list,prog){if(mem)return mem.setMany(list);
-      for(let i=0;i<list.length;i+=20){const b=fb.writeBatch(fs);list.slice(i,i+20).forEach(w=>b.set(fb.doc(fs,w.col,w.id),JSON.parse(JSON.stringify(w.data))));await b.commit();prog&&prog(Math.min(i+20,list.length),list.length)}},
+      /* batches of at most 20 documents and about 3 MB (the online database refuses a request over 10 MB); a failed batch is tried again twice */
+      const groups=[];let g=[],sz=0;list.forEach(w=>{const n=Core.fsSize(w.data);if(g.length&&(g.length>=20||sz+n>3e6)){groups.push(g);g=[];sz=0}g.push(w);sz+=n});if(g.length)groups.push(g);
+      let done=0;for(const grp of groups){for(let t=0;;t++){try{const b=fb.writeBatch(fs);grp.forEach(w=>b.set(fb.doc(fs,w.col,w.id),JSON.parse(JSON.stringify(w.data))));await b.commit();break}
+          catch(e){if(t>=2||e&&e.code==="permission-denied")throw e;await new Promise(r=>setTimeout(r,1500*(t+1)))}}
+        done+=grp.length;prog&&prog(done,list.length)}},
     del(col,id){return mem?mem.del(col,id):fb.deleteDoc(fb.doc(fs,col,id))},
     async me(){return !mem&&auth&&auth.currentUser&&auth.currentUser.email?auth.currentUser.email.toLowerCase():null},
     async names(ids){const o={};ids.forEach(id=>o[id]=id);return o},
@@ -816,7 +823,7 @@ async function savePending(){
     $("upBody").innerHTML=`<p><span class="pill ok">Saved</span> Orders, the master file and reports have been worked out again.</p>`+x.out.join("");
     $("upSave").hidden=true;$("upDone").textContent="Done";
   }catch(e){$("upSave").disabled=false;$("upSave").textContent="Save";
-    $("upBody").insertAdjacentHTML("afterbegin",`<p class="notice">${e&&e.od?"Pick the order date, then press Save.":Store.denied(e)?"You do not have permission to upload.":"Could not save the upload. Check your connection and press Save again."}</p>`)}
+    $("upBody").insertAdjacentHTML("afterbegin",`<p class="notice">${e&&e.od?"Pick the order date, then press Save.":Store.denied(e)?"You do not have permission to upload.":"Could not save the upload. Check your connection and press Save again."}</p>${e&&e.message&&!e.od?`<p class="muted">Details: ${esc(String(e.message).slice(0,200))}</p>`:""}`)}
   finally{$("upDone").disabled=false}
 }
 
