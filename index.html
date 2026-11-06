@@ -55,6 +55,10 @@ button,input,select{font:inherit;color:inherit}
 .sum .c dd{color:var(--crit)}
 @media (max-width:640px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.sum div:nth-child(3){border-left:0}.sum div:nth-child(n+3){border-top:1px solid var(--line)}.sum dd{font-size:21px}}
 
+.sech{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.sech .ic{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}.sech .ic svg{width:22px;height:22px}
+.sech h2{font-size:21px}
+.back{display:inline-flex;align-items:center;gap:6px}.back svg{width:16px;height:16px}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
 @media (min-width:760px){.tabs{flex-wrap:wrap;overflow:visible}.tabs button{padding:10px 9px}}
 .tabs button{display:inline-flex;align-items:center;gap:7px;background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px;font:600 14.5px var(--display);color:var(--muted);cursor:pointer;white-space:nowrap}
@@ -191,8 +195,9 @@ textarea{width:100%;min-height:200px;font:12.5px var(--mono);background:var(--su
   </div>
   <div id="note"></div>
   <dl class="sum" id="sum" hidden></dl>
-  <div class="filt" id="filt" hidden></div>
   <div class="tabs" role="tablist" id="tabs" hidden></div>
+  <div class="sech" id="sech" hidden></div>
+  <div class="filt" id="filt" hidden></div>
   <main id="view"></main>
 </div>
 <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.csv" hidden><input type="file" id="ssfile" accept=".xlsx,.xls,.csv" hidden><input type="file" id="mailfile" accept=".xlsx,.xls,.csv" hidden>
@@ -1050,7 +1055,7 @@ function saveHist(day){const h=S.history.get(day);if(!h)return;const it=S.wD.ite
 function monthGone(){const d=saleDay();return d.getDate()/new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
 
 /* ---------- views ---------- */
-const TABS=[["home","Home"],["updates","Data upload"],["orders","Orders"],["forecast","Forecast"],["master","Master file"],["reports","Reports"],["dashboard","Dashboard"],["plant","Plant stock"],["history","History"],["send","Send"],["users","Users"],["settings","Settings"]];
+const TABS=[["home","Home"],["updates","Data upload"],["orders","Orders"],["forecast","Forecast"],["master","Master file"],["reports","Reports"],["loss","MT sale loss"],["dashboard","Dashboard"],["plant","Plant stock"],["history","History"],["send","Send"],["users","Users"],["settings","Settings"]];
 const ICONS={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   updates:'<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15"/>',
   orders:'<path d="M2.5 6h11v10h-11z"/><path d="M13.5 9.5h4l3.5 3.5v3h-7.5"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
@@ -1062,16 +1067,18 @@ const ICONS={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 
   history:'<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4.5h4.5M12 7.5V12l3 2"/>',
   send:'<path d="M21.5 2.5 10.5 13.5"/><path d="M21.5 2.5 14.5 21.5l-4-8-8-4z"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20.5a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20.5a6.5 6.5 0 0 0-3.8-5.9"/>',
+  loss:'<path d="M3 6.5l6 6 4-4 8 8"/><path d="M15 16.5h6v-6"/><path d="M3 20.5h18"/>',
   settings:'<path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1"/><circle cx="15" cy="6.5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17.5" r="2"/>'};
 const icon=k=>`<svg viewBox="0 0 24 24" class="ico" aria-hidden="true">${ICONS[k]||""}</svg>`;
 const NOFILT=new Set(["home","updates","users","settings","history","send","plant"]);
 function viewHome(){const R=S.res,s=S.sess,ro=!!s.readOnly,today=ORDER.filter(k=>Core.KINDS[k].daily),fresh=today.filter(k=>{const m=S.meta.get(k);return m&&isToday(m.at)}).length;
   const m=k=>S.meta.get(k),upd=k=>m(k)?"Updated "+when(m(k).at):"Not uploaded yet",hm=(m("hsale")||{}).months||[];
-  const T={updates:["Upload the item master, forecast, stock, sales, POs, factory and sale loss files.",[fresh===today.length?"ok":"warn",`${fresh} of ${today.length} daily files updated today`]],
+  const T={updates:["Upload the item master, forecast, stock, sales, POs, factory files and sales history.",[fresh===today.length?"ok":"warn",`${fresh} of ${today.length} daily files updated today`]],
     orders:["Depot-wise order with cover days, cases, CBM and load.",[R&&R.depots.some(d=>d.cases>0)?"ok":"",R?`${nq.format(R.depots.reduce((a,l)=>a+(CS()?l.cs:l.cases),0))} ${UL()} to order`:"No orders yet"]],
     forecast:["Forecast against sale by depot and channel, net of direct sale.",["",upd("forecast")]],
     master:["Every item at every depot: forecast, PO, stock, sale and order.",["",S.DF&&S.DF.items?`${n0.format(S.DF.items.code.length)} final codes`:"No item master yet"]],
-    reports:["Coverage, safety stock, Ecom PO, MT pick-up, accuracy and MT sale loss reasons.",["",`${repVisible().length} reports`]],
+    reports:["Coverage, safety stock, Ecom PO, MT pick-up, over consumption and forecast accuracy.",["",`${repVisible().length} reports`]],
+    loss:["Why MT sale was lost: stock at depot, replenishment, mother depot shortage or forecast fully billed.",[S.meta.get("mtloss")?"ok":"",S.meta.get("mtloss")?"Loss data "+when(S.meta.get("mtloss").at):"No MT loss uploaded yet"]],
     dashboard:["Sales trends, ABC × XYZ, statistical forecast and new or lost SKUs.",["",hm.length?`${hm.length} months of sales history`:"No sales history yet"]],
     plant:["Factory FG against what the depots need, and the balance at the plant.",["",upd("fg")]],
     history:["Each day's orders as they were sent, ready to download again.",["",`${n0.format(S.history.size)} day${S.history.size===1?"":"s"} kept`]],
@@ -1088,8 +1095,9 @@ function render(){
   const pocSel="";
   const unitSel=pocSel+(ready&&R?`<label class="chk">Show in <select id="unit" aria-label="Units"><option value="pcs" ${S.unit==="pcs"?"selected":""}>Pcs</option><option value="cs" ${S.unit==="cs"?"selected":""}>Cases</option></select></label>`:"");
   $("who").innerHTML=unitSel+(s.user?`<span>${esc(s.user.email)}${ready&&s.canAdmin?" · admin":""}</span><button class="btn sm" data-act="signout">Sign out</button>`:S.me&&S.names.get(S.me)?`<span>Signed in as ${esc(S.names.get(S.me))}</span>`:"");
-  $("note").innerHTML=ready&&s.saved===false?`<p class="notice">Nothing is being saved in this view. It is for trying the screens only.</p>`:ready&&s.readOnly?`<p class="muted" style="margin:0 0 10px">View only: the figures are kept up to date by the owner. You can change filters, switch reports and download.</p>`:"";
-  $("tabs").hidden=!ready;$("sum").hidden=!(ready&&R);renderFilt();
+  $("note").innerHTML=ready&&s.saved===false?`<p class="notice">Nothing is being saved in this view. It is for trying the screens only.</p>`:ready&&s.readOnly&&S.tab==="home"?`<p class="muted" style="margin:0 0 10px">View only: the figures are kept up to date by the owner. You can change filters, switch reports and download.</p>`:"";
+  const home=S.tab==="home";$("tabs").hidden=true;$("sum").hidden=!(ready&&R&&(home||S.tab==="orders"));renderFilt();
+  {const sh=$("sech"),lb=(TABS.find(t=>t[0]===S.tab)||[,""])[1];sh.hidden=!ready||home;if(!sh.hidden)sh.innerHTML=`<button class="btn back" data-tab="home"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Home</button><span class="ic">${icon(S.tab)}</span><h2>${esc(lb)}</h2>`}
   if(ready&&R){const cases=R.depots.reduce((a,l)=>a+(CS()?l.cs:l.cases),0),cbm=R.depots.reduce((a,l)=>a+l.cbm,0),wt=R.depots.reduce((a,l)=>a+l.wt,0),short=R.fg?R.fg.filter(x=>x.bal<0).length:null;
     $("sum").innerHTML=`<div><dt>Total order</dt><dd>${nq.format(cases)} <small>${UL()}</small></dd></div><div><dt>Depots ordering</dt><dd>${R.depots.filter(l=>l.cases>0).length} <small>of ${R.depots.length}</small></dd></div>
       <div><dt>Load</dt><dd>${n0.format(cbm)} <small>CBM, ${n0.format(wt)} t</small></dd></div><div class="${short?"c":""}"><dt>Items short at plant</dt><dd>${short==null?"<small>no plant stock yet</small>":short}</dd></div>`}
@@ -1098,7 +1106,7 @@ function render(){
   let h;
   if(!ready)h=viewGate();
   else if(!loaded())h=`<div class="panel empty"><p>Loading…</p></div>`;
-  else h={home:viewHome,updates:viewUpdates,orders:viewOrders,forecast:viewForecast,master:viewMaster,reports:viewReports,dashboard:viewDashboard,plant:viewPlant,history:viewHistory,send:viewSend,users:viewUsers,settings:viewSettings}[S.tab]();
+  else h={loss:viewLossTab,home:viewHome,updates:viewUpdates,orders:viewOrders,forecast:viewForecast,master:viewMaster,reports:viewReports,dashboard:viewDashboard,plant:viewPlant,history:viewHistory,send:viewSend,users:viewUsers,settings:viewSettings}[S.tab]();
   if(ready)ensureNames([...[...S.meta.values()].map(m=>m.by),...S.activity.keys(),...[...S.history.values()].map(h=>h.by),S.me]);
   $("view").innerHTML=h;addMailButtons();
   if(keep){const e=$(keep.id);if(e){e.focus();e.value=keep.v;try{e.setSelectionRange(keep.s,keep.s)}catch(_){}}}
@@ -1121,16 +1129,16 @@ function viewGate(){
       <button class="btn link" type="button" data-act="${up?"mode-in":"mode-up"}">${up?"I already have an account":"First time here? Create an account"}</button></div>
     ${up?`<p class="muted">Use the email an admin added to the member list.</p>`:`<p><button class="btn link" type="button" data-act="forgot">Forgot password</button></p>`}</form>`;
 }
+function upLi(k,i){const w=S.sess.canWrite;
+  const broken=k=>{const m=S.meta.get(k);if(!m)return false;if(k==="items")return !S.D.items;return (m.depots||[]).some(id=>!S.D[k].has(id))};
+const K=Core.KINDS[k],m=S.meta.get(k),stale=m&&K.daily&&!isToday(m.at),bad=broken(k);
+    return `<li><span class="no">${i+1}</span><div><h2>${K.label}</h2><p class="muted">${HELP[k]}</p></div>
+      <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} ${k==="mdmap"?"locations":k==="dstock"?"codes, "+((m.dates||[]).length)+" dates":"items"}${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}`:`<span class="pill off">Not uploaded yet</span>`}</div>
+      <div class="bar">${Store.canSave()?`<button class="btn sm" data-tpl="${k}">Template</button>${m?`<button class="btn sm" data-last="${k}">Download last upload</button>`:""}`:""}${w?`<button class="btn sm pri" data-up="${k}">Upload</button>`:""}</div></li>`}
 function viewUpdates(){
   const w=S.sess.canWrite,cfg=S.D.cfg;
   const lotNote=S.noLot?`<p class="notice" style="margin-bottom:12px">${n0.format(S.noLot)} items have no Case Lot in the item master, so 1 pc is counted as 1 case for them.</p>`:"";
-  const broken=k=>{const m=S.meta.get(k);if(!m)return false;if(k==="items")return !S.D.items;return (m.depots||[]).some(id=>!S.D[k].has(id))};
-  const li=(k,i)=>{const K=Core.KINDS[k],m=S.meta.get(k),stale=m&&K.daily&&!isToday(m.at),bad=broken(k);
-    return `<li><span class="no">${i+1}</span><div><h2>${K.label}</h2><p class="muted">${HELP[k]}</p></div>
-      <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} ${k==="mdmap"?"locations":k==="dstock"?"codes, "+((m.dates||[]).length)+" dates":"items"}${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}`:`<span class="pill off">Not uploaded yet</span>`}</div>
-      <div class="bar">${Store.canSave()?`<button class="btn sm" data-tpl="${k}">Template</button>${m?`<button class="btn sm" data-last="${k}">Download last upload</button>`:""}`:""}${w?`<button class="btn sm pri" data-up="${k}">Upload</button>`:""}</div></li>`};
-  return lotNote+`<div class="panel"><ol class="ups">${ORDER.map(li).join("")}</ol></div>
-  <div class="panel" style="margin-top:14px"><div class="pad" style="padding-bottom:0"><h2>Sale loss files</h2><p class="muted">For the “MT sale loss reasons” report. They do not change the orders.</p></div><ol class="ups">${LOSS_ORDER.map((k,i)=>li(k,ORDER.length+i)).join("")}</ol></div>
+  return lotNote+`<div class="panel"><ol class="ups">${ORDER.map(upLi).join("")}</ol></div>
   <div class="panel pad" style="margin-top:14px"><h2>How the order is worked out</h2>
     <p class="rule">Order = (forecast − direct sale forecast) × (safety + transit + order frequency days) ÷ ${esc(cfg.workDays)} + open PO − physical stock − transit stock</p>
     <p class="muted">Each upload is checked first and stored when you press Save. Each day's orders are kept under History. Done for every item at every depot from the pcs you upload, and rounded up to full cases using the Case Lot in the item master. Use “Show in” at the top to see any figure in pcs or cases (cases = pcs ÷ case lot). Forecast is net of the direct sale forecast, channel by channel, and is never below zero. Forecast and open PO are totals across channels. Reserved stock and MTD sale are shown in the master file but do not change the order. The days for each depot are under Settings.</p></div>`;
@@ -1283,7 +1291,7 @@ function saleDay(){const m=S.meta.get("sale"),d=m?new Date(m.at):new Date();d.se
 function ecomAge(){const v=S.D.cfg.ecomAge;return v==null||v===""?6:Core.num(v)}
 function drrDays(){const o=Core.num(S.D.cfg.drrDays);if(o>0)return o;return saleDay().getDate()}
 function sfData(){return S.sfCache||(S.sfCache=Core.shortfall(S.wD,S.res,drrDays()))}
-const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["loss","MT sale loss reasons"]];
+const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
 /* report types the owner deleted are left out of the list; the owner can delete and restore them */
 const repHidden=()=>new Set(S.repHidden||[]);
 const repVisible=()=>{const h=repHidden();return RVIEWS.filter(([v])=>!h.has(v))};
@@ -1769,7 +1777,7 @@ function saveShortfall(){const R=S.res,it=S.wD.items,SF=sfData(),days=drrDays(),
   save(`Safety stock shortfall ${stamp()}.xlsx`,[["To send from FG",sheet(x=>x.send,v=>v)],["Factory FG by item",fgs],["Shortfall (need)",sheet(x=>x.short,v=>v)],["Not covered by FG",sheet(x=>x.unc,v=>v)],["Total required",sheet(x=>x.req,r1)],["Safety stock need",sheet(x=>x.ssq,r1)],[`Ecom PO counted`,sheet(x=>x.poE,r1)],["Ecom direct factory plan",sheet(x=>x.epl,r1)],["MT open PO",sheet(x=>x.poM,r1)],["Stock (phy+transit)",sheet(x=>x.stock,v=>v)],["Factory balance pending",sheet(x=>x.bal,r1)],["Factory order",sheet(x=>x.ord,r1)],["Dispatched since order",sheet(x=>x.disp,r1)],["DRR",sheet(x=>x.drr,r1)],["Detail by item and depot",det],["Brand safety days used",set]])}
 /* ---------- MT sale loss: the reason behind every lost pc ---------- */
 const LR=[["r1","Stock available but bill not done"],["r2","Stock not available at depot (SCM replenishment issue)"],["r3","Stock shortage at mother depot"],["r4","Already billed 100% against forecast"],["nd","No stock data for the date"],["nm","Mother depot not set"]];
-const lossTab=()=>S.tab==="reports"&&S.rep.view==="loss";
+const lossTab=()=>S.tab==="loss";
 /* stock by date and the loss qty are loaded only when the report (or their upload) is opened */
 function ensureLoss(){if(S.lossOn||S.sess.state!=="ready")return;S.lossOn=true;ensureArch();
   const dead=()=>{S.lossErr=true;if(lossTab())render()};
@@ -1818,11 +1826,13 @@ function lossData(){const mo=lossMonth(),fsel=lossFc(mo),ssel=lossSale(),lsl=S.r
   return S.lossCache={key,mo,fsel,ssel,lines,tot,byLoc,byItem,byDate,nameOf,depOf,mothers,locsAll:[...locsAll].sort(),hasStock:dmap.size>0}}
 const mainReason=a=>{let b=null;LR.forEach(([k,l])=>{if(a[k]>0&&(!b||a[k]>a[b[0]]))b=[k,l]});return b?b[1]:""};
 const pctOfQ=(v,t)=>t?n0.format(v/t*100)+"%":"–";
+function viewLossTab(){const files=`<div class="panel" style="margin-top:16px"><div class="pad" style="padding-bottom:0"><h2>Sale loss files</h2><p class="muted">The files behind this report. They do not change the orders.</p></div><ol class="ups">${LOSS_ORDER.map(upLi).join("")}</ol></div>`;
+  return (S.res?viewLoss():`<div class="panel empty"><p>Upload the item master, forecast and MTD sale first (Data upload).</p></div>`)+files}
 function viewLoss(){ensureLoss();const ms=S.mloss?lossMonths():[];
-  const bar0=`<div class="bar" style="margin-bottom:10px">${rvSel()}`;
+  const bar0=`<div class="bar" style="margin-bottom:10px">`;
   if(S.lossErr&&!S.mloss)return bar0+`</div><div class="panel empty"><h2>The sale loss data could not be loaded</h2><p>${S.sess.canAdmin?"The online database does not allow this data yet. Update the database rules with the new rules file (steps in the setup guide), then reload the page.":"Ask the admin to finish the setup for this report."}</p></div>`;
   if(!S.mloss||!S.dst||!S.arch)return bar0+`</div><div class="panel empty"><p>Loading the sale loss data…</p></div>`;
-  if(!ms.length)return bar0+`</div><div class="panel empty"><h2>No MT loss uploaded yet</h2><p>On the Data upload tab, under “Sale loss files”, upload the MT loss qty (date-wise), the date-wise stock and the mother depot list. The MT sale for sale loss is optional; without it the current MTD sale is used.</p><button class="btn pri" data-tab="updates">Go to Data upload</button></div>`;
+  if(!ms.length)return bar0+`</div><div class="panel empty"><h2>No MT loss uploaded yet</h2><p>Below, under “Sale loss files”, upload the MT loss qty (date-wise), the date-wise stock and the mother depot list. The MT sale for sale loss is optional; without it the current MTD sale is used.</p></div>`;
   const L=lossData(),T=L.tot,mo=L.mo,show=LR.filter(([k])=>k.startsWith("r")||T[k]>0);
   const bar=bar0+`<label class="chk">Loss month <select id="lsm">${ms.map(m=>`<option value="${m}" ${m===mo?"selected":""}>${esc(monLabel(m))}</option>`).join("")}</select></label>
     <label class="chk">Forecast <select id="lsf">${lossFcOpts().map(([v,l])=>`<option value="${v}" ${v===L.fsel?"selected":""}>${esc(l)}</option>`).join("")}</select></label>
@@ -1864,7 +1874,6 @@ function viewReports(){
   if(S.rep.view==="mtl")return viewMtLow();
   if(S.rep.view==="oc")return viewOC();
   if(S.rep.view==="fa")return viewFA();
-  if(S.rep.view==="loss")return viewLoss();
   const F=S.fvsCache||(S.fvsCache=Core.fvs(R)),it=S.wD.items,rp=S.rep,gone=monthGone(),hasSale=!!S.meta.get("sale");
   const chs=[...new Set(F.map(r=>r.ch))],depOk=r=>!rp.dep||R.depots[r.k].id===rp.dep,chOk=r=>!rp.ch||r.ch===rp.ch;
   const cls=p=>p==null?"":p<gone*0.8?"behind":p>gone*1.2?"ahead":"";
