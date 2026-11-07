@@ -1134,7 +1134,8 @@ function render(){
   let h;
   if(!ready)h=viewGate();
   else if(!loaded())h=`<div class="panel empty"><p>Loading…</p></div>`;
-  else h={loss:viewLossTab,home:viewHome,updates:viewUpdates,orders:viewOrders,forecast:viewForecast,master:viewMaster,reports:viewReports,dashboard:viewDashboard,plant:viewPlant,history:viewHistory,send:viewSend,users:viewUsers,settings:viewSettings}[S.tab]();
+  else try{h=({loss:viewLossTab,home:viewHome,updates:viewUpdates,orders:viewOrders,forecast:viewForecast,master:viewMaster,reports:viewReports,dashboard:viewDashboard,plant:viewPlant,history:viewHistory,send:viewSend,users:viewUsers,settings:viewSettings}[S.tab]||viewHome)()}
+    catch(e){console.error(e);h=`<div class="panel empty"><h2>This page could not be shown</h2><p>Something in the saved data stopped it. Send this line to the admin:</p><p class="mono muted">${esc(String(e&&e.message||e).slice(0,200))}</p><button class="btn" data-tab="home">Back to Home</button></div>`}
   if(ready)ensureNames([...[...S.meta.values()].map(m=>m.by),...S.activity.keys(),...[...S.history.values()].map(h=>h.by),S.me]);
   $("view").innerHTML=h;addMailButtons();
   if(keep){const e=$(keep.id);if(e){e.focus();e.value=keep.v;try{e.setSelectionRange(keep.s,keep.s)}catch(_){}}}
@@ -1158,7 +1159,7 @@ function viewGate(){
     ${up?`<p class="muted">Use the email an admin added to the member list.</p>`:`<p><button class="btn link" type="button" data-act="forgot">Forgot password</button></p>`}</form>`;
 }
 function upLi(k,i){const w=S.sess.canWrite;
-  const broken=k=>{const m=S.meta.get(k);if(!m)return false;if(k==="items")return !S.D.items;return (m.depots||[]).some(id=>!S.D[k].has(id))};
+  const broken=k=>{const m=S.meta.get(k);if(!m)return false;if(k==="items")return !S.D.items;if(!(S.D[k] instanceof Map))return false;return (m.depots||[]).some(id=>!S.D[k].has(id))};
 const K=Core.KINDS[k],m=S.meta.get(k),stale=m&&K.daily&&!isToday(m.at),bad=broken(k);
     return `<li><span class="no">${i+1}</span><div><h2>${K.label}</h2><p class="muted">${HELP[k]}</p></div>
       <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} ${k==="mdmap"?"locations":k==="dstock"?"codes, "+((m.dates||[]).length)+" dates":"items"}${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}`:`<span class="pill off">Not uploaded yet</span>`}</div>
