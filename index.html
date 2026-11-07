@@ -549,8 +549,8 @@ let long=false,hasHead=false;
     if(kind==="dstock"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
       const fc=D.items?(D.items.fcode||D.items.code).map((c,i)=>String(c||D.items.code[i])):[],seen=new Set(),rows=[];fc.forEach((c,i)=>{if(seen.has(c))return;seen.add(c);rows.push([dd,c,(D.items.fname&&D.items.fname[i])||D.items.name[i]])});
       return [["Date-wise stock",[["Date","Final Code","Final Name",...LOSS_LOCS],...rows]]]}
-    if(kind==="mtloss"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=[1,2,3].map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
-      return [["MT loss",[["Location","I. Code","Product name",...ds]]]]}
+    if(kind==="mtloss"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=Array.from({length:30},(_,i)=>i+1).map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
+      return [["MT loss",[["Location","Item code","Item name",...ds]]]]}
     if(kind==="mdmap")return [["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...LOSS_LOCS.map(l=>[l,(cfg.depots.find(d=>d.id===guessDep(l,cfg))||{name:""}).name,"",""])]],
       ["Depots",[["Depot names you can use"],...dn.map(d=>[d])]]];
     if(kind==="lsale")kind="sale";
@@ -735,7 +735,7 @@ const when=iso=>{const d=new Date(iso),t=d.toLocaleTimeString("en-IN",{hour:"num
 const isToday=iso=>new Date(iso).toDateString()===new Date().toDateString();
 function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,4500)}
 const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"],LOSS_ORDER=["mtloss","dstock","mdmap","lsale"];
-const HELP={mtloss:"Location, I. Code, Product name, then one column per date (04-11-2026, 03-11-2026 …) with the MT lost qty in pcs. Month and “Last N days” columns are skipped. Each upload replaces the months in it.",
+const HELP={mtloss:"Location, Item code, Item name, then one column per date for the last 30 days (06-11-2026, 05-11-2026 …) with the MT lost qty in pcs. Each upload replaces only the dates in it; earlier dates stay. Month and “Last N days” columns, if any, are skipped.",
   dstock:"Date, Final Code, Final Name, then one column per location (Bangalore, Ahmedabad … UCL_Orissa) with the stock in pcs. One or many dates; each upload replaces only the dates in it.",
   mdmap:"Location, Depot, Mother Depot 1, Mother Depot 2. Location and mother depots are written as in the stock file; Depot is the order depot in Settings (for forecast and sale). The template comes filled with your locations.",
   lsale:"Optional. Same layout as the MTD sale (Item Code, Item Name, Sale Channel, Depot, Sale Qty). Used only by the MT sale loss report; without it the current MTD sale is used.",
@@ -867,7 +867,7 @@ function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=
     const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} codes are not in the item master.</p>`);return out}
   if(p.kind==="mtloss"){const noDep=p.locs.filter(l=>!depOf(l)),noM=p.locs.filter(l=>!mothers(l).length);
     out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.n)} items</b> at <b>${p.locs.length} locations</b>, ${p.nDates} dates from ${esc(dmy(p.dateFrom))} to ${esc(dmy(p.dateTo))}. Total MT loss ${n0.format(p.total)} pcs.</p>`,
-      `<p class="muted">Months in the file (${p.months.map(monLabel).map(esc).join(", ")}) replace those already saved; other months stay.</p>`);
+      `<p class="muted">These ${p.nDates} dates replace any MT loss already saved for them; earlier dates stay.</p>`);
     if(noDep.length)out.push(`<p class="notice">No order depot found for: ${noDep.map(esc).join(", ")}. Put them in the mother depot list with their Depot.</p>`);
     if(noM.length&&(S.mdmap||[]).length)out.push(`<p class="notice">No mother depot set for: ${noM.map(esc).join(", ")}.</p>`);
     if(!(S.mdmap||[]).length)out.push(`<p class="notice">The mother depot list is not uploaded yet.</p>`);
@@ -932,8 +932,14 @@ function readFile(kind,file){
     $("upSave").disabled=!S.sess.canWrite;if(!S.sess.canWrite)$("upBody").insertAdjacentHTML("beforeend",`<p class="notice">You do not have permission to upload.</p>`);
   }catch(e){$("upBody").innerHTML=`<p class="notice">${esc(e.message||"That file could not be read.")}</p><p class="muted">Nothing was saved. Fix the file and upload it again.</p>`;$("upSave").hidden=true}},50);
 }
+/* a 30-day file touches two months: keep the saved dates of those months that are not in the file */
+function mergeLoss(p){const inFile=new Set(),old=new Map((S.mloss||[]).map(x=>[x.key,x]));p.byMonth.forEach(M=>M.dates.forEach(d=>inFile.add(d)));
+  p.byMonth.forEach((M,m)=>{const o=old.get(m);if(!o)return;const cp=new Map(M.codes.map((c,i)=>[c,i])),lp=new Map(M.locs.map((l,i)=>[l,i])),dp=new Map(M.dates.map((d,i)=>[d,i]));
+    const ix=(mp,arr,v)=>{let i=mp.get(v);if(i==null){i=arr.length;mp.set(v,i);arr.push(v)}return i};
+    for(let t=0;t<o.r.length;t+=4){const d=o.dates[o.r[t+2]];if(inFile.has(d))continue;M.r.push(ix(cp,M.codes,o.codes[o.r[t]]),ix(lp,M.locs,o.locs[o.r[t+1]]),ix(dp,M.dates,d),o.r[t+3])}})}
 async function savePending(){
-  const x=S.pending;if(!x)return;$("upBody").querySelectorAll(".errn").forEach(e=>e.remove());$("upSave").disabled=true;$("upSave").textContent="Saving…";$("upDone").disabled=true;
+  const x=S.pending;if(!x)return;
+  if(x.p.kind==="mtloss"&&!x.merged){if(S.meta.get("mtloss")){ensureLoss();for(let i=0;i<40&&!S.mloss;i++)await new Promise(r=>setTimeout(r,250));if(!S.mloss){toast("Still loading the saved MT loss. Press Save again in a moment.");return}}mergeLoss(x.p);x.merged=true}$("upBody").querySelectorAll(".errn").forEach(e=>e.remove());$("upSave").disabled=true;$("upSave").textContent="Saving…";$("upDone").disabled=true;
   if(x.p.kind==="fcarch"){try{const mo=($("upMon")||{}).value;if(!/^\d{4}-\d{2}$/.test(mo||""))throw Object.assign(new Error("Pick the month."),{od:1});
       const ents=[];x.p.depots.forEach((d,id)=>{if(d.fields.length)ents.push({dep:id,codes:x.p.codes,fields:d.fields,vals:d.v})});
       await saveArch(mo,ents);const m=S.meta.get("fcarch")||{};await Store.setMany([{col:"meta",id:"fcarch",data:{at:new Date().toISOString(),by:S.me||"",file:x.file,rows:x.p.n,depots:[],lastMonth:mo,months:[...new Set([...(m.months||[]),mo])].sort()}}]);
