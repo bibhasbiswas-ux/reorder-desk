@@ -224,7 +224,7 @@ const Core=(()=>{
     fcCh:["GT","GT-Agaro","AVT","MT","MnCC","Ecom","Retail","FK-Minutes"],saleCh:["GT","AVT","MT","MnCC","Ecom"],poCh:["Ecom","MT"]});
   const KINDS={items:{label:"Item master",daily:false},forecast:{label:"Channel-wise forecast",daily:false,ch:"fcCh"},direct:{label:"Direct sale forecast",daily:false,ch:"fcCh"},stock:{label:"Daily stock",daily:true},
     sale:{label:"MTD sale",daily:true,ch:"saleCh"},po:{label:"Open PO",daily:true,ch:"poCh"},factory:{label:"Factory order",daily:false},dispatch:{label:"Factory dispatch",daily:true},fg:{label:"Factory FG",daily:true},ecomplan:{label:"Ecom direct factory plan",daily:true},dplan:{label:"Factory direct plan",daily:true},ecomsku:{label:"Ecom SKU list",daily:false},hsale:{label:"Sales history",daily:false,ch:"saleCh"},fcarch:{label:"Past forecast (for accuracy)",daily:false,ch:"fcCh"},
-    dstock:{label:"Date-wise stock (sale loss)",daily:false},mtloss:{label:"MT loss qty (date-wise)",daily:false},lsale:{label:"MT sale date-wise (sale loss)",daily:false},mdmap:{label:"Mother depot list",daily:false}};
+    dstock:{label:"Date-wise stock (sale loss)",daily:false},fstock:{label:"Factory stock date-wise (sale loss)",daily:false},mtloss:{label:"MT loss qty (date-wise)",daily:false},lsale:{label:"MT sale date-wise (sale loss)",daily:false},mdmap:{label:"Mother depot list",daily:false}};
   const LOSS_LOCS=["Bangalore","Ahmedabad","Bhiwandi","Mandideep2","Pune","Chennai2","Chennai3","Coimbatore","Cochin","Ghaziabad","Gurgaon","Jaipur","Lucknow","Ludhiana","Mundka","Hyderabad","Guwahati","Kolkata","Patna","UCL_Orissa"];
   const STOCKF=["Physical","Transit","Reserved"];
   const STOCK_SYN={physical:0,phy:0,phystock:0,actualphy:0,physicalstock:0,stock:0,transit:1,transitstock:1,intransit:1,reserved:2,reserve:2,reservedstock:2,reservestock:2,stockreservedforsale:2};
@@ -376,6 +376,8 @@ const Core=(()=>{
     if(kind==="fg"||kind==="dplan")return parseFG(sheets,opt||{},kind);
     if(kind==="hsale")return parseHist(sheets,cfg);
     if(kind==="dstock")return parseDStock(sheets);
+    if(kind==="fstock"){const p=parseDStock(sheets);if(p.error)return p;const names=p.locs;p.byDate.forEach((D,d)=>{const s=new Map();for(let t=0;t<D.r.length;t+=3)s.set(D.r[t],(s.get(D.r[t])||0)+D.r[t+2]);const r=[];s.forEach((q,ci)=>{if(q)r.push(ci,0,+q.toFixed(3))});p.byDate.set(d,{codes:D.codes,r})});
+      p.kind="fstock";p.factoryCols=names;p.locs=["Factory"];return p}
     if(kind==="mtloss")return parseLoss(sheets);
     if(kind==="mdmap")return parseMdmap(sheets);
     if(kind==="lsale")return parseDSale(sheets);
@@ -475,8 +477,8 @@ let long=false,hasHead=false;
         const est=JSON.stringify(r).length+JSON.stringify(A.codes).length,parts=Math.max(1,Math.ceil(est/150000)),per=Math.ceil(r.length/4/parts)*4||4;
         for(let k=0;k<parts;k++){const d={month:m,part:k,parts,r:r.slice(k*per,(k+1)*per),...stamp};if(!k){d.codes=A.codes;d.deps=deps;d.chs=chs}out.push({col:"hsale",id:k?m+"~"+k:m,data:d})}});
       out.push({col:"meta",id:"hsale",data:{...stamp,rows:p.n,depots:[],months:p.months}});return out}
-    if(p.kind==="dstock"){const out=[];p.byDate.forEach((D,d)=>out.push(...packParts("dstock",d,{date:d,codes:D.codes,locs:p.locs},D.r,3,stamp)));
-      out.push({col:"meta",id:"dstock",data:{...stamp,rows:p.n,depots:[],dates:p.dates}});return out}
+    if(p.kind==="dstock"||p.kind==="fstock"){const out=[],pre=p.kind==="fstock"?"f_":"";p.byDate.forEach((D,d)=>out.push(...packParts("dstock",pre+d,{date:d,codes:D.codes,locs:p.locs},D.r,3,stamp)));
+      out.push({col:"meta",id:p.kind,data:{...stamp,rows:p.n,depots:[],dates:p.dates}});return out}
     if(p.kind==="mtloss"||p.kind==="lsale"){const out=[],k=p.kind;p.byMonth.forEach((M,m)=>out.push(...packParts(k,m,{month:m,codes:M.codes,locs:M.locs,dates:M.dates},M.r,4,stamp)));
       out.push({col:"meta",id:k,data:{...stamp,rows:p.n,depots:[],months:p.months}});return out}
     if(p.kind==="mdmap")return [{col:"cfg",id:"mdmap",data:{rows:p.rows,...stamp}},{col:"meta",id:"mdmap",data:{...stamp,rows:p.n,depots:[]}}];
@@ -568,6 +570,9 @@ let long=false,hasHead=false;
     if(kind==="dstock"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
       const fc=D.items?(D.items.fcode||D.items.code).map((c,i)=>String(c||D.items.code[i])):[],seen=new Set(),rows=[];fc.forEach((c,i)=>{if(seen.has(c))return;seen.add(c);rows.push([dd,c,(D.items.fname&&D.items.fname[i])||D.items.name[i]])});
       return [["Date-wise stock",[["Date","Final Code","Final Name",...LOSS_LOCS],...rows]]]}
+    if(kind==="fstock"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
+      const fc=D.items?(D.items.fcode||D.items.code).map((c,i)=>String(c||D.items.code[i])):[],seen=new Set(),rows=[];fc.forEach((c,i)=>{if(seen.has(c))return;seen.add(c);rows.push([dd,c,(D.items.fname&&D.items.fname[i])||D.items.name[i],""])});
+      return [["Factory stock",[["Date","Final Code","Final Name","Factory stock"],...rows]]]}
     if(kind==="mtloss"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=Array.from({length:30},(_,i)=>i+1).map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
       return [["MT loss",[["Location","Item code","Item name",...ds]]]]}
     if(kind==="mdmap")return [["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...LOSS_LOCS.map(l=>[l,(cfg.depots.find(d=>d.id===guessDep(l,cfg))||{name:""}).name,"",""])]],
@@ -754,8 +759,9 @@ const n0=new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}),n1=new Intl.Nu
 const when=iso=>{const d=new Date(iso),t=d.toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"});return (d.toDateString()===new Date().toDateString()?"today":d.toLocaleDateString("en-IN",{day:"numeric",month:"short"}))+", "+t};
 const isToday=iso=>new Date(iso).toDateString()===new Date().toDateString();
 function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,4500)}
-const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"],LOSS_ORDER=["mtloss","dstock","mdmap","lsale"];
-const HELP={mtloss:"Location, Item code, Item name, then one column per date for the last 30 days (06-11-2026, 05-11-2026 …) with the MT lost qty in pcs. Each upload replaces only the dates in it; earlier dates stay. Month and “Last N days” columns, if any, are skipped.",
+const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"],LOSS_ORDER=["mtloss","dstock","fstock","mdmap","lsale"];
+const HELP={fstock:"Date, Final Code, Final Name, Factory stock (pcs). One or many dates; with several factory columns they are added together. For a depot short on a loss date, the factory stock that many days earlier (depot transit days in Settings + 1 loading + 1 unloading) shows whether the factory had stock to send. Each upload replaces only the dates in it.",
+mtloss:"Location, Item code, Item name, then one column per date for the last 30 days (06-11-2026, 05-11-2026 …) with the MT lost qty in pcs. Each upload replaces only the dates in it; earlier dates stay. Month and “Last N days” columns, if any, are skipped.",
   dstock:"Date, Final Code, Final Name, then one column per location (Bangalore, Ahmedabad … UCL_Orissa) with the stock in pcs. One or many dates; each upload replaces only the dates in it.",
   mdmap:"Location, Depot, Mother Depot 1, Mother Depot 2. Location and mother depots are written as in the stock file; Depot is the order depot in Settings (for forecast and sale). The template comes filled with your locations.",
   lsale:"Date, Item code, Item name, Sales channel, Location, Qty (pcs), one row per sale. All channels can be in the file; only MT is used. For a loss on a date, the MT sale from the 1st of the month up to that date is compared with the month's MT forecast. Each upload replaces only the dates in it. Without it the current MTD sale is used.",
@@ -845,7 +851,7 @@ function startWatch(){
   w("ownerset",m=>{S.repHidden=((m.get("reports")||{}).hidden||[]).map(String)});
   if(Store.hasTeam&&S.sess.saved)w("members",m=>{S.members=m});
 }
-function stopWatch(){S.unsubs.forEach(u=>{try{u&&u()}catch(_){}});S.unsubs=[];S.got.clear();S.histOn=false;S.hist=null;S.dashCache=null;S.archOn=false;S.arch=null;S.lossOn=false;S.lossErr=false;S.dst=null;S.mloss=null;S.dsale=null;S.lossCache=null}
+function stopWatch(){S.unsubs.forEach(u=>{try{u&&u()}catch(_){}});S.unsubs=[];S.got.clear();S.histOn=false;S.hist=null;S.dashCache=null;S.archOn=false;S.arch=null;S.lossOn=false;S.lossErr=false;S.dst=null;S.fst=null;S.mloss=null;S.dsale=null;S.lossCache=null}
 function onSession(s){if(s){S.sess=s;if(s.state==="ready"){startWatch();Store.me().then(id=>{S.me=id;render();afterCompute()}).catch(()=>{})}else{stopWatch();S.me=null;S.loginDone=false}}render()}
 const loaded=()=>["cfg","master","meta",...WIDE].every(c=>S.got.has(c));
 
@@ -879,7 +885,7 @@ function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=
     if(stk.size){const badM=[...new Set(p.rows.flatMap(r=>[r.m1,r.m2]).filter(m=>m&&!stk.has(Core.key(m))))];if(badM.length)out.push(`<p class="notice">Mother depots not found as a location in the date-wise stock: ${badM.map(esc).join(", ")}. Write them as in the stock file.</p>`)}
     const noM=p.rows.filter(r=>!r.m1&&!r.m2).length;if(noM)out.push(`<p class="muted">${noM} locations have no mother depot.</p>`);
     out.push(`<p class="muted">This list replaces the earlier one.</p>`);return out}
-  if(p.kind==="dstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.allCodes||p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}.</p>`,
+  if(p.kind==="dstock"||p.kind==="fstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.allCodes||p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) ${p.kind==="fstock"?`from <b>${p.factoryCols.length} factory column${p.factoryCols.length>1?"s":""}</b>: ${p.factoryCols.map(esc).join(", ")}${p.factoryCols.length>1?" (added together)":""}`:`at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}`}.</p>`,
       `<p class="muted">These dates replace any stock already saved for them; other dates stay.</p>`);
     if(p.allCodes&&p.allCodes>p.n)out.push(`<p class="muted">Only MT items are kept: <b>${n0.format(p.n)}</b> of ${n0.format(p.allCodes)} codes (items with an MT forecast, MT sale, MT open PO or MT loss). The others cannot have an MT loss, so they are left out to keep the page fast.</p>`);
     if(p.badDates)out.push(`<p class="notice">${n0.format(p.badDates)} rows skipped because the Date could not be read.</p>`);
@@ -899,7 +905,7 @@ function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=
     if(!(S.mdmap||[]).length)out.push(`<p class="notice">The mother depot list is not uploaded yet.</p>`);
     const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} item codes are not in the item master.</p>`);return out}
   return out}
-function summary(p){if(p.kind==="dstock"||p.kind==="mtloss"||p.kind==="mdmap"||p.kind==="lsale")return lossSummary(p);
+function summary(p){if(p.kind==="dstock"||p.kind==="fstock"||p.kind==="mtloss"||p.kind==="mdmap"||p.kind==="lsale")return lossSummary(p);
   if(p.kind==="fcarch"){const d=new Date(),pm=`${d.getMonth()?d.getFullYear():d.getFullYear()-1}-${String(d.getMonth()||12).padStart(2,"0")}`,withData=[...p.depots.entries()].filter(([,x])=>x.fields.length);
     return [`<p><b>${n0.format(p.n)} items</b> for <b>${withData.length} depots</b>.</p>`,`<label class="fld" style="max-width:260px">Forecast month<input type="month" id="upMon" value="${pm}"></label>`,`<p class="muted">Kept as that month's forecast for the Forecast accuracy report. It does not change the current forecast or the orders.</p>`,...p.warn.map(w=>`<p class="notice">${esc(w)}</p>`)]}
   if(p.kind==="factory"||p.kind==="dispatch"||p.kind==="ecomplan")return factorySummary(p);
@@ -945,13 +951,13 @@ function readFile(kind,file){
     if(!sheets.length)throw new Error("The file has no data.");
     if((kind==="factory"||kind==="dispatch"||kind==="fg"||kind==="ecomplan"||kind==="dplan")&&!S.D.items)throw new Error("Upload the item master first. Its Case Lot turns cartons into pcs.");
     if(kind==="hsale")ensureHist();
-    if(kind==="dstock"||kind==="mtloss"||kind==="lsale")ensureLoss();
+    if(kind==="dstock"||kind==="fstock"||kind==="mtloss"||kind==="lsale")ensureLoss();
     const lp=new Map();if(S.D.items){const F=DFv().items;F.code.forEach((c,i)=>lp.set(String(c),Core.num(F.csLot[i])));S.D.items.code.forEach((c,i)=>lp.set(String(c),Core.num(S.D.items.csLot[i])))}
     const p=Core.parseUpload(kind,sheets,S.D.cfg,{lotOf:c=>lp.get(String(c))||0});
     if(p.error)throw new Error(p.error);
     if(!p.n)throw new Error("No item rows were found under the headings.");
     if(kind==="items"&&!p.found.includes("Item name"))throw new Error("No 'Item name' column was found.");
-    if(kind==="dstock")mtOnly(p);
+    if(kind==="dstock"||kind==="fstock")mtOnly(p);
     const out=summary(p);S.pending={p,kind,file:file.name,out};
     $("upBody").innerHTML=`<p class="muted">Check the figures below, then press Save. Nothing is stored until you do.</p>`+out.join("");
     $("upSave").disabled=!S.sess.canWrite;if(!S.sess.canWrite)$("upBody").insertAdjacentHTML("beforeend",`<p class="notice">You do not have permission to upload.</p>`);
@@ -974,13 +980,13 @@ async function savePending(){
   try{if(x.p.kind==="factory"){const v=($("upOd")||{}).value;if(!/^\d{4}-\d{2}-\d{2}$/.test(v||""))throw Object.assign(new Error("Pick the order date."),{od:1});x.p.orderDate=v;
       x.out=x.out.map(h=>h.startsWith('<label class="fld" style="max-width:260px">Order date')?`<p>Order date <b>${esc(dmy(v))}</b>.</p>`:h)}
     const docs=Core.toDocs(x.p,{at:new Date().toISOString(),by:S.me||"",file:x.file}),up=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    const nm=docs.filter(d=>d.col!=="meta"),writes=x.p.kind==="hsale"||x.p.kind==="dstock"||x.p.kind==="mtloss"||x.p.kind==="lsale"?nm.map(d=>({...d,data:{...d.data,up}})):Core.splitDocs(nm,up),stale=Core.staleParts(S.raw,writes);
+    const nm=docs.filter(d=>d.col!=="meta"),writes=x.p.kind==="hsale"||x.p.kind==="dstock"||x.p.kind==="fstock"||x.p.kind==="mtloss"||x.p.kind==="lsale"?nm.map(d=>({...d,data:{...d.data,up}})):Core.splitDocs(nm,up),stale=Core.staleParts(S.raw,writes);
     const prog=(d,t)=>{$("upSave").textContent=`Saving… ${Math.round(d/t*100)}%`};
     await Store.setMany(writes,prog);                   /* the data first, in parts */
     for(const y of stale){try{await Store.del(y.col,y.id)}catch(_){}}
     if(x.p.kind==="po"&&x.p.podate){try{await Store.del("podate","_none")}catch(_){}}
     const metas=docs.filter(d=>d.col==="meta").map(d=>{const old=S.meta.get(d.id)||{};
-      if(d.id==="dstock")return {...d,data:{...d.data,dates:[...new Set([...(old.dates||[]),...d.data.dates])].sort()}};
+      if(d.id==="dstock"||d.id==="fstock")return {...d,data:{...d.data,dates:[...new Set([...(old.dates||[]),...d.data.dates])].sort()}};
       if(d.id==="mtloss"||d.id==="lsale")return {...d,data:{...d.data,months:[...new Set([...(old.months||[]),...d.data.months])].sort()}};return d});
     await Store.setMany(metas); /* the upload record only once all the data is in */
     S.pending=null;S.snapDue=true;logUpload(x.kind,x.file,x.p.n);
@@ -1025,7 +1031,7 @@ function saveMaster(){const R=S.res,M=Core.masterAoa(S.wD,R,UH()),it=S.wD.items;
 function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Map(it?it.code.map((c,i)=>[String(c),i]):[]);
   if(k==="hsale"&&!S.hist){ensureHist();toast("Loading the sales history. Press the button again in a moment.");return}
   if(k==="fcarch"&&!S.arch){ensureArch();toast("Loading the kept forecasts. Press the button again in a moment.");return}
-  if((k==="dstock"&&!S.dst)||(k==="mtloss"&&!S.mloss)||(k==="lsale"&&!S.dsale)){ensureLoss();toast("Loading the saved data. Press the button again in a moment.");return}
+  if(((k==="dstock")&&!S.dst)||(k==="fstock"&&!S.fst)||(k==="mtloss"&&!S.mloss)||(k==="lsale"&&!S.dsale)){ensureLoss();toast("Loading the saved data. Press the button again in a moment.");return}
   const fnm=c=>{const F=DFv().items;if(!F)return "";let i=F.code.indexOf(String(c));if(i<0)i=F.code.indexOf(fcode(c));return i<0?"":F.name[i]};
   const nm=c=>{const i=pos.get(String(c));return i==null?"":it.name[i]},lot=c=>{const i=pos.get(String(c));const l=i==null?0:Core.num(it.csLot[i]);return l>0?l:1},r4=v=>+(+v||0).toFixed(4);
   const dn=id=>(cfg.depots.find(d=>d.id===id)||{name:id}).name,docs=mp=>cfg.depots.map(d=>[d,mp&&mp.get(d.id)]).filter(x=>x[1]&&Array.isArray(x[1].codes)&&x[1].fields&&x[1].fields.length);
@@ -1054,6 +1060,7 @@ function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Ma
   else if(k==="dstock"){const locs=[];(S.dst||[]).forEach(x=>x.locs.forEach(l=>{if(!locs.includes(l))locs.push(l)}));const rows=[["Date","Final Code","Final Name",...locs]];
     (S.dst||[]).forEach(x=>{const li=x.locs.map(l=>locs.indexOf(l)),by=new Map();for(let t=0;t<x.r.length;t+=3){let a=by.get(x.r[t]);if(!a)by.set(x.r[t],a=new Array(locs.length).fill(0));a[li[x.r[t+1]]]+=x.r[t+2]}
       by.forEach((a,ci)=>{const c=String(x.codes[ci]);rows.push([dmy(x.key),c,fnm(c),...a.map(r4)])})});sheets=[["Date-wise stock",rows]]}
+  else if(k==="fstock"){const rows=[["Date","Final Code","Final Name","Factory stock"]];(S.fst||[]).forEach(x=>{for(let t=0;t<x.r.length;t+=3){const c=String(x.codes[x.r[t]]);rows.push([dmy(x.key),c,fnm(c),r4(x.r[t+2])])}});sheets=[["Factory stock",rows]]}
   else if(k==="mtloss"){const ds=[...new Set((S.mloss||[]).flatMap(x=>x.dates))].sort().reverse(),dp=new Map(ds.map((d,j)=>[d,j])),by=new Map();
     (S.mloss||[]).forEach(x=>{for(let t=0;t<x.r.length;t+=4){const loc=x.locs[x.r[t+1]],c=String(x.codes[x.r[t]]),kk=loc+"\u0001"+c;let a=by.get(kk);if(!a)by.set(kk,a={loc,c,v:new Array(ds.length).fill(0)});a.v[dp.get(x.dates[x.r[t+2]])]+=x.r[t+3]}});
     sheets=[["MT loss",[["Location","I. Code","Product name",...ds.map(dmy)],...[...by.values()].map(a=>[a.loc,a.c,nm(a.c)||fnm(a.c),...a.v.map(r4)])]]]}
@@ -1819,12 +1826,13 @@ function saveShortfall(){const R=S.res,it=S.wD.items,SF=sfData(),days=drrDays(),
   const FG=SF.fg,fgs=[["Item Code","Item Name","Category","Sub-Category",`Factory FG (up to ${FG.fgMin} cases counted as 0)`,"Factory balance pending (all depots)","Ecom direct factory plan","Factory direct plan","Balance FG","Total shortfall","To send from FG","Not covered"],...it.code.map((c,i)=>[c,it.name[i],it.cat[i],it.sub[i],r1(FG.fg[i]),r1(FG.balT[i]),r1(FG.eplT[i]),r1(FG.dpl[i]),r1(FG.fresh[i]),r1(FG.need[i]),r1(FG.sent[i]),r1(FG.need[i]-FG.sent[i])])];
   save(`Safety stock shortfall ${stamp()}.xlsx`,[["To send from FG",sheet(x=>x.send,v=>v)],["Factory FG by item",fgs],["Shortfall (need)",sheet(x=>x.short,v=>v)],["Not covered by FG",sheet(x=>x.unc,v=>v)],["Total required",sheet(x=>x.req,r1)],["Safety stock need",sheet(x=>x.ssq,r1)],[`Ecom PO counted`,sheet(x=>x.poE,r1)],["Ecom direct factory plan",sheet(x=>x.epl,r1)],["MT open PO",sheet(x=>x.poM,r1)],["Stock (phy+transit)",sheet(x=>x.stock,v=>v)],["Factory balance pending",sheet(x=>x.bal,r1)],["Factory order",sheet(x=>x.ord,r1)],["Dispatched since order",sheet(x=>x.disp,r1)],["DRR",sheet(x=>x.drr,r1)],["Detail by item and depot",det],["Brand safety days used",set]])}
 /* ---------- MT sale loss: the reason behind every lost pc ---------- */
-const LR=[["r1","Stock available but bill not done"],["r2","Stock not available at depot (SCM replenishment issue)"],["r3","Stock shortage at mother depot"],["r4","Already billed 100% against forecast"],["nd","No stock data after the loss date"],["nm","Mother depot not set"]];
+const LR=[["r1","Stock available but bill not done"],["r2","SCM replenishment issue – mother depot had stock"],["r2f","SCM replenishment issue – factory had stock"],["r3","Stock not available at mother depot & factory"],["r4","Already billed 100% against forecast"],["nd","No depot stock data after the loss date"],["nf","No factory stock data for the date"]];
+const LKEYS=["q","F","Sl","ds","ms","fs","r1","r2","r2f","r3","r4","nd","nf"];
 const lossTab=()=>S.tab==="loss";
 /* stock by date and the loss qty are loaded only when the report (or their upload) is opened */
 function ensureLoss(){if(S.lossOn||S.sess.state!=="ready")return;S.lossOn=true;ensureArch();
   const dead=()=>{S.lossErr=true;if(lossTab())render()};
-  S.unsubs.push(Store.watch("dstock",m=>{S.raw.dstock=m;S.dst=assembleParts(m,"date");S.dstC=new Map();S.lossCache=null;if(lossTab())render()},dead));
+  S.unsubs.push(Store.watch("dstock",m=>{S.raw.dstock=m;const dm=new Map(),fm=new Map();m.forEach((d,id)=>(String(id).startsWith("f_")?fm:dm).set(id,d));S.dst=assembleParts(dm,"date");S.fst=assembleParts(fm,"date");S.dstC=new Map();S.lossCache=null;if(lossTab())render()},dead));
   S.unsubs.push(Store.watch("lsale",m=>{S.raw.lsale=m;S.dsale=assembleParts(m,"month").filter(x=>/^\d{4}-\d{2}$/.test(x.key));S.lsaleV=(S.lsaleV||0)+1;S.lossCache=null;if(lossTab())render()},dead));
   S.unsubs.push(Store.watch("mtloss",m=>{S.raw.mtloss=m;S.mloss=assembleParts(m,"month");S.lossCache=null;if(lossTab())render()},dead))}
 function assembleParts(m,f){const g=new Map();m.forEach((d,id)=>{const [b,k]=String(id).split("~");if(!g.has(b))g.set(b,[]);g.get(b).push([k?+k:0,d])});
@@ -1853,6 +1861,12 @@ function lossData(){const mo=lossMonth(),fsel=lossFc(mo),ssel=lossSale(mo),lsl=S
   if(fsel==="cur")mtOf(DF.forecast,fc);else{const a=(S.arch||[]).find(x=>x.month===fsel.slice(2));if(a)for(let t=0;t<a.r.length;t+=4){if(Core.key(a.chs[a.r[t+2]])!=="mt")continue;add(fc,fcode(a.codes[a.r[t]])+"|"+a.deps[a.r[t+1]],a.r[t+3])}}
   const {depOf,mothers}=lossMap(),dmap=new Map((S.dst||[]).map(x=>[x.key,x])),sdays=[...dmap.keys()].sort();
   /* the first stock date after the loss date: normally the next day, else the next date that has stock */
+  const addDays=(d,k)=>{const x=new Date(d+"T00:00:00Z");x.setUTCDate(x.getUTCDate()+k);return x.toISOString().slice(0,10)};
+  /* stock as it was by a date: that date's stock, else the latest uploaded date up to 7 days before it */
+  const onOrBefore=(days,d)=>{let lo=0,hi=days.length-1,b=null;while(lo<=hi){const m=(lo+hi)>>1;if(days[m]<=d){b=days[m];lo=m+1}else hi=m-1}return b&&b>=addDays(d,-7)?b:null};
+  const fmap=new Map((S.fst||[]).map(x=>[x.key,x])),fdays=[...fmap.keys()].sort(),fC=new Map();
+  const facAt=d=>{if(fC.has(d))return fC.get(d);const x=fmap.get(d),o=new Map();if(x)for(let t=0;t<x.r.length;t+=3){const c=fcode(x.codes[x.r[t]]);o.set(c,(o.get(c)||0)+x.r[t+2])}fC.set(d,o);return o};
+  const lead=dep=>{const d=S.D.cfg.depots.find(x=>x.id===dep);return (d?Core.num(d.transit)||0:0)+2};
   const stockDay=d=>{let lo=0,hi=sdays.length-1,b=null;while(lo<=hi){const m=(lo+hi)>>1;if(sdays[m]>d){b=sdays[m];hi=m-1}else lo=m+1}return b};if(!S.dstC)S.dstC=new Map();
   const stockAt=d=>{if(S.dstC.has(d))return S.dstC.get(d);const x=dmap.get(d);let o=null;if(x){o=new Map();for(let t=0;t<x.r.length;t+=3){const lk=Core.key(x.locs[x.r[t+1]]);let m=o.get(lk);if(!m)o.set(lk,m=new Map());const c=fcode(x.codes[x.r[t]]);m.set(c,(m.get(c)||0)+x.r[t+2])}}S.dstC.set(d,o);return o};
   /* MT sale: date-wise, added up from the 1st of the month to the loss date at the order depot; else the current MTD sale */
@@ -1864,17 +1878,17 @@ function lossData(){const mo=lossMonth(),fsel=lossFc(mo),ssel=lossSale(mo),lsl=S
   if(rec)for(let t=0;t<rec.r.length;t+=4){const code=fcode(rec.codes[rec.r[t]]),loc=rec.locs[rec.r[t+1]],date=rec.dates[rec.r[t+2]],raw=rec.r[t+3];if(!(raw>0))continue;locsAll.add(loc);
     if(allow&&!allow.has(code))continue;if(lsl&&Core.key(loc)!==lsl)continue;if(q&&!(code+" "+nameOf(code)+" "+loc).toLowerCase().includes(q))continue;
     const dep=depOf(loc),F=fc.get(code+"|"+dep)||0,Sl=saleUpTo(code+"|"+dep,date),sd=stockDay(date),st=sd?stockAt(sd):null,M=mothers(loc),dv=cs?lotOf(code):1;
-    const o={date,sd,loc,code,dep,M,q:raw,F,Sl,ds:null,ms:null,r1:0,r2:0,r3:0,r4:0,nd:0,nm:0};let rest=raw;
-    if(st){o.ds=sq(st,loc,code);o.r1=Math.min(rest,Math.max(0,o.ds));rest-=o.r1}           /* 1. the depot had the stock */
-    if(rest>0&&Sl>=F){o.r4=rest;rest=0}                                                   /* 2. MT already billed the whole forecast */
+    const o={date,sd,loc,code,dep,M,q:raw,F,Sl,ds:null,ms:null,md:null,fs:null,fd:null,lt:lead(dep),r1:0,r2:0,r2f:0,r3:0,r4:0,nd:0,nf:0};let rest=raw;
+    if(st){o.ds=sq(st,loc,code);o.r1=Math.min(rest,Math.max(0,o.ds));rest-=o.r1}           /* 1. the depot had the stock (next stock date) */
+    if(rest>0&&Sl>=F){o.r4=rest;rest=0}                                                   /* 2. MT already billed the forecast up to that date */
     if(rest>0&&!st){o.nd=rest;rest=0}
-    if(rest>0&&!M.length){o.nm=rest;rest=0}
-    if(rest>0){o.ms=M.reduce((s,m)=>s+sq(st,m,code),0);o.r2=Math.min(rest,Math.max(0,o.ms));o.r3=rest-o.r2}  /* 3. mother depot had it, else 4. it did not */
-    if(dv!==1)["q","F","Sl","ds","ms","r1","r2","r3","r4","nd","nm"].forEach(k=>{if(o[k]!=null)o[k]/=dv});
+    if(rest>0&&M.length){o.md=onOrBefore(sdays,addDays(date,-2));if(o.md){const s2=stockAt(o.md);o.ms=M.reduce((s,m)=>s+sq(s2,m,code),0);o.r2=Math.min(rest,Math.max(0,o.ms));rest-=o.r2}}  /* 3. mother depot had stock 2 days before */
+    if(rest>0){o.fd=onOrBefore(fdays,addDays(date,-o.lt));if(o.fd){o.fs=facAt(o.fd).get(code)||0;o.r2f=Math.min(rest,Math.max(0,o.fs));o.r3=rest-o.r2f}else o.nf=rest}  /* 4. factory had stock transit+2 days before, else 5. nobody had it */
+    if(dv!==1)LKEYS.forEach(k=>{if(o[k]!=null)o[k]/=dv});
     lines.push(o)}
-  const agg=()=>({q:0,r1:0,r2:0,r3:0,r4:0,nd:0,nm:0,n:0}),put=(m,k)=>{let a=m.get(k);if(!a)m.set(k,a=agg());return a},tot=agg(),byLoc=new Map(),byItem=new Map(),byDate=new Map();
+  const agg=()=>({q:0,r1:0,r2:0,r2f:0,r3:0,r4:0,nd:0,nf:0,n:0}),put=(m,k)=>{let a=m.get(k);if(!a)m.set(k,a=agg());return a},tot=agg(),byLoc=new Map(),byItem=new Map(),byDate=new Map();
   lines.forEach(o=>[tot,put(byLoc,o.loc),put(byItem,o.code),put(byDate,o.date)].forEach(a=>{a.n++;a.q+=o.q;LR.forEach(([k])=>a[k]+=o[k])}));
-  return S.lossCache={key,mo,fsel,ssel,lines,tot,byLoc,byItem,byDate,nameOf,depOf,mothers,locsAll:[...locsAll].sort(),hasStock:dmap.size>0}}
+  return S.lossCache={key,mo,fsel,ssel,lines,tot,byLoc,byItem,byDate,nameOf,depOf,mothers,locsAll:[...locsAll].sort(),hasStock:dmap.size>0,hasFac:fmap.size>0}}
 const mainReason=a=>{let b=null;LR.forEach(([k,l])=>{if(a[k]>0&&(!b||a[k]>a[b[0]]))b=[k,l]});return b?b[1]:""};
 const pctOfQ=(v,t)=>t?n0.format(v/t*100)+"%":"–";
 function viewLossTab(){const files=`<div class="panel" style="margin-top:16px"><div class="pad" style="padding-bottom:0"><h2>Sale loss files</h2><p class="muted">The files behind this report. They do not change the orders.</p></div><ol class="ups">${LOSS_ORDER.map(upLi).join("")}</ol></div>`;
@@ -1891,10 +1905,11 @@ function viewLoss(){ensureLoss();const ms=S.mloss?lossMonths():[];
     <select id="lsl" aria-label="Location"><option value="">All locations</option>${L.locsAll.map(l=>`<option value="${esc(Core.key(l))}" ${S.rep.lsl===Core.key(l)?"selected":""}>${esc(l)}</option>`).join("")}</select>
     <input class="grow" type="search" id="q" placeholder="Search final code, name or location" value="${esc(S.q)}" aria-label="Search">
     ${Store.canSave()?`<button class="btn" data-act="dlloss">Download (Excel)</button>`:""}</div>
-  <p class="muted" style="margin-bottom:10px">Every lost pc in the MT loss file is given a reason, in this order: <b>1.</b> stock at the location on the next day covers it (a loss on the 10th is checked against the stock of the 11th; if the 11th is not uploaded, the first later date that is) → <i>stock available but bill not done</i>; <b>2.</b> for the rest, if the MT sale up to that date already reached the month's MT forecast of the item at its order depot → <i>already billed 100% against forecast</i> (no MT forecast counts as 100% billed); <b>3.</b> stock at mother depot 1 + mother depot 2 on that next day covers it → <i>stock not available at depot (SCM replenishment issue)</i>; <b>4.</b> anything left → <i>stock shortage at mother depot</i>. A lost qty can be split across reasons. Forecast: ${esc((lossFcOpts().find(x=>x[0]===L.fsel)||[,""])[1])}; MT sale: ${L.ssel==="up"?"date-wise MT sale from the 1st of the month up to each loss date":"current MTD sale (upload the date-wise MT sale to count sale only up to each loss date)"}. Codes are counted by Final Code. Figures in ${UL()}.</p>`;
+  <p class="muted" style="margin-bottom:10px">Every lost pc in the MT loss file is given a reason, in this order: <b>1.</b> stock at the location on the next day covers it (a loss on the 10th uses the stock of the 11th, or the first later date uploaded) → <i>stock available but bill not done</i>; <b>2.</b> for the rest, if the MT sale from the 1st up to the loss date already reached the month's MT forecast at its order depot → <i>already billed 100% against forecast</i> (no MT forecast counts as 100% billed); <b>3.</b> stock at mother depot 1 + 2, <b>2 days before</b> the loss, covers it → <i>SCM replenishment issue – mother depot had stock</i>; <b>4.</b> factory stock <b>transit days (Settings) + 1 loading + 1 unloading</b> before the loss covers it (Gurgaon with 5 transit days: a loss on the 17th checks the factory on the 10th) → <i>SCM replenishment issue – factory had stock</i>; <b>5.</b> anything left → <i>stock not available at mother depot &amp; factory</i>. A lost qty can be split across reasons. If a stock date is not uploaded, the latest date up to 7 days before it is used. Forecast: ${esc((lossFcOpts().find(x=>x[0]===L.fsel)||[,""])[1])}; MT sale: ${L.ssel==="up"?"date-wise MT sale from the 1st of the month up to each loss date":"current MTD sale (upload the date-wise MT sale to count sale only up to each loss date)"}. Codes are counted by Final Code. Figures in ${UL()}.</p>`;
   const kpi=`<div class="kpis kmini lossk"><div class="kpi"><div class="kl">MT loss, ${esc(monLabel(mo))}</div><div class="kv">${nq.format(T.q)}<small> ${UL()}</small></div><div class="kd muted">${n0.format(L.byItem.size)} items · ${n0.format(L.byLoc.size)} locations</div></div>${show.map(([k,l])=>`<div class="kpi"><div class="kl">${esc(l)}</div><div class="kv">${nq.format(T[k])}</div><div class="kd muted">${pctOfQ(T[k],T.q)} of the loss</div></div>`).join("")}</div>`;
   const warn=[];if(!L.hasStock)warn.push("No date-wise stock is uploaded yet, so reasons that need stock show as “No stock data for the date”.");
-  if(T.nm>0)warn.push(`Some locations have no mother depot in the mother depot list: ${[...L.byLoc.entries()].filter(([,a])=>a.nm>0).map(([l])=>esc(l)).join(", ")}.`);
+  if(!L.hasFac)warn.push("No factory stock date-wise is uploaded yet, so depot shortages that the mother depot could not cover show as “No factory stock data for the date”.");
+  else if(T.nf>0)warn.push("Some loss dates have no factory stock uploaded for the date they need (loss date minus transit + 2 days, or up to 7 days before that), so they show as “No factory stock data for the date”.");
   if(T.nd>0){const nd=[...L.byDate.entries()].filter(([,a])=>a.nd>0).map(([d])=>dmy(d));warn.push(`No stock is uploaded for any date after these loss dates: ${nd.slice(0,10).join(", ")}${nd.length>10?" …":""}. Upload the next day's stock to give them a stock reason.`)}
   {const late=L.lines.filter(o=>o.sd&&o.sd!==nextDay(o.date)).length;if(late)warn.push(`For ${n0.format(late)} loss lines the next day's stock is not uploaded, so the first later stock date is used (see “Stock date used” in the download).`)}
   const head=["Location","Order depot","Mother depots","MT loss",...show.map(([,l])=>esc(l))];
@@ -1913,8 +1928,8 @@ function saveLoss(){const L=lossData(),show=LR.filter(([k])=>k.startsWith("r")||
   const loc=[["Location","Order depot","Mother depots",`MT loss (${U})`,...hd,"Main reason"],...[...L.byLoc.entries()].sort((a,b)=>b[1].q-a[1].q).map(([l,a])=>[l,dn(L.depOf(l)),L.mothers(l).join(", "),r(a.q),...cols(a),mainReason(a)]),["Total","","",r(L.tot.q),...cols(L.tot),""]];
   const item=[["Final Code","Final Name",`MT loss (${U})`,...hd,"Main reason"],...[...L.byItem.entries()].sort((a,b)=>b[1].q-a[1].q).map(([c,a])=>[c,L.nameOf(c),r(a.q),...cols(a),mainReason(a)])];
   const date=[["Date",`MT loss (${U})`,...hd],...[...L.byDate.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([d,a])=>[dmy(d),r(a.q),...cols(a)])];
-  const det=[["Date","Location","Order depot","Final Code","Final Name",`MT loss (${U})`,"Stock date used","Stock at location","Mother depot 1","Mother depot 2","Stock at mother depots","MT forecast (month)",L.ssel==="up"?"MT sale up to loss date":"MT sale (MTD)","MT sale % of forecast",...show.map(([,l])=>l),"Main reason"],
-    ...L.lines.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.loc.localeCompare(b.loc)||b.q-a.q).map(o=>[dmy(o.date),o.loc,dn(o.dep),o.code,L.nameOf(o.code),r(o.q),o.sd?dmy(o.sd):"",r(o.ds),o.M[0]||"",o.M[1]||"",r(o.ms),r(o.F),r(o.Sl),o.F?+(o.Sl/o.F*100).toFixed(1):"",...show.map(([k])=>r(o[k])),mainReason(o)])];
+  const det=[["Date","Location","Order depot","Final Code","Final Name",`MT loss (${U})`,"Stock date used","Stock at location","Mother depot 1","Mother depot 2","Mother depot stock date (loss − 2 days)","Stock at mother depots","Factory lead days (transit + 2)","Factory stock date","Factory stock","MT forecast (month)",L.ssel==="up"?"MT sale up to loss date":"MT sale (MTD)","MT sale % of forecast",...show.map(([,l])=>l),"Main reason"],
+    ...L.lines.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.loc.localeCompare(b.loc)||b.q-a.q).map(o=>[dmy(o.date),o.loc,dn(o.dep),o.code,L.nameOf(o.code),r(o.q),o.sd?dmy(o.sd):"",r(o.ds),o.M[0]||"",o.M[1]||"",o.md?dmy(o.md):"",r(o.ms),o.lt,o.fd?dmy(o.fd):"",r(o.fs),r(o.F),r(o.Sl),o.F?+(o.Sl/o.F*100).toFixed(1):"",...show.map(([k])=>r(o[k])),mainReason(o)])];
   save(`MT sale loss reasons ${monLabel(L.mo)} ${stamp()}.xlsx`,[["Summary",sum],["By location",loc],["By item",item],["By date",date],["Detail",det]])}
 function viewReports(){
   const R=S.res;if(!R)return need();
