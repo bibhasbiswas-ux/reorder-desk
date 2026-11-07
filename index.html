@@ -323,6 +323,18 @@ const Core=(()=>{
       const dates=[...by.keys()].sort(),byDate=new Map();dates.forEach(d=>{const D=by.get(d);byDate.set(d,{codes:D.codes,r:D.r})});
       return {kind:"dstock",locs:cols.map(x=>x.loc),dates,byDate,n:codes.size,rows,badDates:bad,depots:new Map(),codes:[...codes]}}
     return {error:"No heading row with Date and Final Code was found. Keep the heading row from the template."}}
+  /* factory stock: one sheet per factory (Myra, PHPL, PMPL …), each Item code | Item name | one column per date; all factories are added together */
+  function parseFStockWide(sheets){const by=new Map(),codes=new Set(),used=[];let rows=0;
+    for(const s of sheets){const g=s.grid,h=findHead(g,{code:LCODE});if(!h)continue;const hdr=g[h.r],dc=[];
+      for(let c=0;c<hdr.length;c++){if(c===h.at.code)continue;const v=hdr[c];if(v==null||v==="")continue;const d=(typeof v==="number"&&v<20000)?null:isoDate(v);if(d)dc.push({c,d})}
+      if(!dc.length)continue;let n=0;
+      for(let r=h.r+1;r<g.length;r++){const row=g[r]||[],code=String(row[h.at.code]??"").trim();if(!code)continue;n++;codes.add(code);
+        dc.forEach(x=>{const q=num(row[x.c]);if(!q)return;let D=by.get(x.d);if(!D)by.set(x.d,D={codes:[],cp:new Map(),q:[]});let ci=D.cp.get(code);if(ci==null){ci=D.codes.length;D.cp.set(code,ci);D.codes.push(code);D.q.push(0)}D.q[ci]+=q})}
+      rows+=n;used.push(`${s.name} (${dc.length} dates)`)}
+    if(!used.length)return null;
+    const dates=[...by.keys()].sort(),byDate=new Map();dates.forEach(d=>{const D=by.get(d),r=[];D.q.forEach((q,ci)=>{if(q)r.push(ci,0,+q.toFixed(3))});byDate.set(d,{codes:D.codes,r})});
+    if(!dates.length)return {error:"Date columns were found but no stock quantities."};
+    return {kind:"fstock",locs:["Factory"],factoryCols:used,sheetsMode:true,dates,byDate,n:codes.size,rows,badDates:0,depots:new Map(),codes:[...codes]}}
   /* Location | I. Code | Product name | ... | 04-11-2026 | 03-11-2026 ... (lost pcs); month and 'last N days' columns are skipped */
   /* MT sale by date, in either layout: like the MT loss file (Location | Item code | Item name | dates) or like the date-wise stock (Date | Final Code | Final Name | locations) */
   /* Date | Item code | Item name | Sales channel | Location | Qty: one row per sale; only the MT channel is kept */
@@ -376,7 +388,7 @@ const Core=(()=>{
     if(kind==="fg"||kind==="dplan")return parseFG(sheets,opt||{},kind);
     if(kind==="hsale")return parseHist(sheets,cfg);
     if(kind==="dstock")return parseDStock(sheets);
-    if(kind==="fstock"){const p=parseDStock(sheets);if(p.error)return p;const names=p.locs;p.byDate.forEach((D,d)=>{const s=new Map();for(let t=0;t<D.r.length;t+=3)s.set(D.r[t],(s.get(D.r[t])||0)+D.r[t+2]);const r=[];s.forEach((q,ci)=>{if(q)r.push(ci,0,+q.toFixed(3))});p.byDate.set(d,{codes:D.codes,r})});
+    if(kind==="fstock"){const w=parseFStockWide(sheets);if(w)return w;const p=parseDStock(sheets);if(p.error)return p;const names=p.locs;p.byDate.forEach((D,d)=>{const s=new Map();for(let t=0;t<D.r.length;t+=3)s.set(D.r[t],(s.get(D.r[t])||0)+D.r[t+2]);const r=[];s.forEach((q,ci)=>{if(q)r.push(ci,0,+q.toFixed(3))});p.byDate.set(d,{codes:D.codes,r})});
       p.kind="fstock";p.factoryCols=names;p.locs=["Factory"];return p}
     if(kind==="mtloss")return parseLoss(sheets);
     if(kind==="mdmap")return parseMdmap(sheets);
@@ -570,9 +582,8 @@ let long=false,hasHead=false;
     if(kind==="dstock"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
       const fc=D.items?(D.items.fcode||D.items.code).map((c,i)=>String(c||D.items.code[i])):[],seen=new Set(),rows=[];fc.forEach((c,i)=>{if(seen.has(c))return;seen.add(c);rows.push([dd,c,(D.items.fname&&D.items.fname[i])||D.items.name[i]])});
       return [["Date-wise stock",[["Date","Final Code","Final Name",...LOSS_LOCS],...rows]]]}
-    if(kind==="fstock"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
-      const fc=D.items?(D.items.fcode||D.items.code).map((c,i)=>String(c||D.items.code[i])):[],seen=new Set(),rows=[];fc.forEach((c,i)=>{if(seen.has(c))return;seen.add(c);rows.push([dd,c,(D.items.fname&&D.items.fname[i])||D.items.name[i],""])});
-      return [["Factory stock",[["Date","Final Code","Final Name","Factory stock"],...rows]]]}
+    if(kind==="fstock"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=Array.from({length:10},(_,i)=>i+1).map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
+      return ["Myra","PHPL","PMPL"].map(f=>[f,[["Item code","Item name",...ds]]])}
     if(kind==="mtloss"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=Array.from({length:30},(_,i)=>i+1).map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
       return [["MT loss",[["Location","Item code","Item name",...ds]]]]}
     if(kind==="mdmap")return [["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...LOSS_LOCS.map(l=>[l,(cfg.depots.find(d=>d.id===guessDep(l,cfg))||{name:""}).name,"",""])]],
@@ -760,7 +771,7 @@ const when=iso=>{const d=new Date(iso),t=d.toLocaleTimeString("en-IN",{hour:"num
 const isToday=iso=>new Date(iso).toDateString()===new Date().toDateString();
 function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,4500)}
 const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku"],ORDER=["items","forecast","direct","stock","sale","po","factory","dispatch","fg","ecomplan","dplan","ecomsku","hsale","fcarch"],LOSS_ORDER=["mtloss","dstock","fstock","mdmap","lsale"];
-const HELP={fstock:"Date, Final Code, Final Name, Factory stock (pcs). One or many dates; with several factory columns they are added together. For a depot short on a loss date, the factory stock that many days earlier (depot transit days in Settings + 1 loading + 1 unloading) shows whether the factory had stock to send. Each upload replaces only the dates in it.",
+const HELP={fstock:"One sheet per factory (Myra, PHPL, PMPL), each with Item code, Item name, then one column per date with the stock in pcs. All factories are added together. For a depot short on a loss date, the factory stock that many days earlier (depot transit days in Settings + 1 loading + 1 unloading) shows whether the factory had stock to send. Each upload replaces only the dates in it.",
 mtloss:"Location, Item code, Item name, then one column per date for the last 30 days (06-11-2026, 05-11-2026 …) with the MT lost qty in pcs. Each upload replaces only the dates in it; earlier dates stay. Month and “Last N days” columns, if any, are skipped.",
   dstock:"Date, Final Code, Final Name, then one column per location (Bangalore, Ahmedabad … UCL_Orissa) with the stock in pcs. One or many dates; each upload replaces only the dates in it.",
   mdmap:"Location, Depot, Mother Depot 1, Mother Depot 2. Location and mother depots are written as in the stock file; Depot is the order depot in Settings (for forecast and sale). The template comes filled with your locations.",
@@ -885,7 +896,7 @@ function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=
     if(stk.size){const badM=[...new Set(p.rows.flatMap(r=>[r.m1,r.m2]).filter(m=>m&&!stk.has(Core.key(m))))];if(badM.length)out.push(`<p class="notice">Mother depots not found as a location in the date-wise stock: ${badM.map(esc).join(", ")}. Write them as in the stock file.</p>`)}
     const noM=p.rows.filter(r=>!r.m1&&!r.m2).length;if(noM)out.push(`<p class="muted">${noM} locations have no mother depot.</p>`);
     out.push(`<p class="muted">This list replaces the earlier one.</p>`);return out}
-  if(p.kind==="dstock"||p.kind==="fstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.allCodes||p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) ${p.kind==="fstock"?`from <b>${p.factoryCols.length} factory column${p.factoryCols.length>1?"s":""}</b>: ${p.factoryCols.map(esc).join(", ")}${p.factoryCols.length>1?" (added together)":""}`:`at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}`}.</p>`,
+  if(p.kind==="dstock"||p.kind==="fstock"){out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.allCodes||p.n)} codes</b> on <b>${p.dates.length} date${p.dates.length>1?"s":""}</b> (${esc(dmy(p.dates[0]))}${p.dates.length>1?" to "+esc(dmy(p.dates[p.dates.length-1])):""}) ${p.kind==="fstock"?`from <b>${p.factoryCols.length} ${p.sheetsMode?"factory sheet":"factory column"}${p.factoryCols.length>1?"s":""}</b>: ${p.factoryCols.map(esc).join(", ")}${p.factoryCols.length>1?" (added together)":""}`:`at <b>${p.locs.length} locations</b>: ${p.locs.map(esc).join(", ")}`}.</p>`,
       `<p class="muted">These dates replace any stock already saved for them; other dates stay.</p>`);
     if(p.allCodes&&p.allCodes>p.n)out.push(`<p class="muted">Only MT items are kept: <b>${n0.format(p.n)}</b> of ${n0.format(p.allCodes)} codes (items with an MT forecast, MT sale, MT open PO or MT loss). The others cannot have an MT loss, so they are left out to keep the page fast.</p>`);
     if(p.badDates)out.push(`<p class="notice">${n0.format(p.badDates)} rows skipped because the Date could not be read.</p>`);
