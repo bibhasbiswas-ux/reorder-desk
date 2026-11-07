@@ -325,7 +325,20 @@ const Core=(()=>{
     return {error:"No heading row with Date and Final Code was found. Keep the heading row from the template."}}
   /* Location | I. Code | Product name | ... | 04-11-2026 | 03-11-2026 ... (lost pcs); month and 'last N days' columns are skipped */
   /* MT sale by date, in either layout: like the MT loss file (Location | Item code | Item name | dates) or like the date-wise stock (Date | Final Code | Final Name | locations) */
-  function parseDSale(sheets){const a=parseLoss(sheets,"lsale");if(!a.error)return a;const b=parseDStock(sheets);if(b.error)return {error:"No heading row was found. Use Location | Item code | Item name | one column per date (like the MT loss file), or Date | Final Code | Final Name | one column per location."};
+  /* Date | Item code | Item name | Sales channel | Location | Qty: one row per sale; only the MT channel is kept */
+  function parseSaleRows(sheets){for(const s of sheets){const g=s.grid,h=findHead(g,{date:["date","billdate","invoicedate","saledate"],code:LCODE,ch:["saleschannel","salechannel","channel","saletype"],loc:["location","depot","loc","branch"],qty:["qty","quantity","saleqty","salesqty","salequantity","pcs"]});if(!h)continue;
+      const byM=new Map(),codes=new Set(),locs=new Set(),chs=new Map();let rows=0,total=0,bad=0,other=0;
+      for(let r=h.r+1;r<g.length;r++){const row=g[r]||[],code=String(row[h.at.code]??"").trim(),loc=String(row[h.at.loc]??"").replace(/\s+/g," ").trim();if(!code||!loc)continue;rows++;
+        const ch=String(row[h.at.ch]??"").trim(),q=num(row[h.at.qty]);chs.set(ch||"(blank)",(chs.get(ch||"(blank)")||0)+1);if(key(ch)!=="mt"){other++;continue}if(!q)continue;
+        const d=isoDate(row[h.at.date]);if(!d){bad++;continue}codes.add(code);locs.add(loc);total+=q;const m=d.slice(0,7);
+        let M=byM.get(m);if(!M)byM.set(m,M={codes:[],cp:new Map(),locs:[],lp:new Map(),dates:[],dp:new Map(),r:[]});
+        let ci=M.cp.get(code);if(ci==null){ci=M.codes.length;M.cp.set(code,ci);M.codes.push(code)}let li=M.lp.get(loc);if(li==null){li=M.locs.length;M.lp.set(loc,li);M.locs.push(loc)}
+        let di=M.dp.get(d);if(di==null){di=M.dates.length;M.dp.set(d,di);M.dates.push(d)}M.r.push(ci,li,di,+q.toFixed(3))}
+      if(!byM.size)return {error:`No MT sale rows were found. Sales channels in the file: ${[...chs.keys()].slice(0,10).join(", ")||"none"}. The channel must be MT.`};
+      const months=[...byM.keys()].sort(),byMonth=new Map(),ds=new Set();months.forEach(m=>{const M=byM.get(m);M.dates.forEach(d=>ds.add(d));byMonth.set(m,{codes:M.codes,locs:M.locs,dates:M.dates,r:M.r})});const dl=[...ds].sort();
+      return {kind:"lsale",months,byMonth,n:codes.size,rows,total,locs:[...locs],dateFrom:dl[0],dateTo:dl[dl.length-1],nDates:dl.length,depots:new Map(),codes:[...codes],chs:[...chs.entries()],otherRows:other,badDates:bad,long:true}}
+    return null}
+  function parseDSale(sheets){const z=parseSaleRows(sheets);if(z)return z;const a=parseLoss(sheets,"lsale");if(!a.error)return a;const b=parseDStock(sheets);if(b.error)return {error:"No heading row was found. Use Date | Item code | Item name | Sales channel | Location | Qty."};
     const byM=new Map();let total=0;b.byDate.forEach((D,d)=>{const m=d.slice(0,7);let M=byM.get(m);if(!M)byM.set(m,M={codes:[],cp:new Map(),locs:b.locs.slice(),dates:[],r:[]});const di=M.dates.length;M.dates.push(d);
       for(let t=0;t<D.r.length;t+=3){const c=D.codes[D.r[t]];let ci=M.cp.get(c);if(ci==null){ci=M.codes.length;M.cp.set(c,ci);M.codes.push(c)}M.r.push(ci,D.r[t+1],di,D.r[t+2]);total+=D.r[t+2]}});
     const months=[...byM.keys()].sort(),byMonth=new Map();months.forEach(m=>{const M=byM.get(m);byMonth.set(m,{codes:M.codes,locs:M.locs,dates:M.dates,r:M.r})});
@@ -559,8 +572,8 @@ let long=false,hasHead=false;
       return [["MT loss",[["Location","Item code","Item name",...ds]]]]}
     if(kind==="mdmap")return [["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...LOSS_LOCS.map(l=>[l,(cfg.depots.find(d=>d.id===guessDep(l,cfg))||{name:""}).name,"",""])]],
       ["Depots",[["Depot names you can use"],...dn.map(d=>[d])]]];
-    if(kind==="lsale"){const t=Date.now(),p=n=>String(n).padStart(2,"0"),ds=Array.from({length:30},(_,i)=>i+1).map(k=>{const d=new Date(t-k*86400000);return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`});
-      return [["MT sale",[["Location","Item code","Item name",...ds]]]]}
+    if(kind==="lsale"){const d=new Date(Date.now()-86400000),p=n=>String(n).padStart(2,"0"),dd=`${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`;
+      return [["MT sale",[["Date","Item code","Item name","Sales channel","Location","Qty"],[dd,"","","MT","Bangalore",""]]]]}
     if(kind==="forecast"||kind==="direct"){const head=["Item Code","Item Name"];cfg.fcCh.forEach(ch=>dn.forEach(d=>head.push(ch+" | "+d)));return [[kind==="direct"?"Direct sale forecast":"Forecast",[head,...items]]]}
     if(kind==="stock")return [["Phy",[["Item Code","Item Name",...dn,"Plant FG"],...items]],["Transit",[["Item Code","Item Name",...dn],...items]],["Reserve",[["Item Code","Item Name",...dn],...items]]];
     if(kind==="factory"){const it=D.items,head=["Item Code","Item Name","Brand","Category","Sub-Category","Case Wgt","CBM","Case Lot",...dn];
@@ -745,7 +758,7 @@ const WIDE=["forecast","direct","stock","sale","po","factory","dispatch","fg","e
 const HELP={mtloss:"Location, Item code, Item name, then one column per date for the last 30 days (06-11-2026, 05-11-2026 …) with the MT lost qty in pcs. Each upload replaces only the dates in it; earlier dates stay. Month and “Last N days” columns, if any, are skipped.",
   dstock:"Date, Final Code, Final Name, then one column per location (Bangalore, Ahmedabad … UCL_Orissa) with the stock in pcs. One or many dates; each upload replaces only the dates in it.",
   mdmap:"Location, Depot, Mother Depot 1, Mother Depot 2. Location and mother depots are written as in the stock file; Depot is the order depot in Settings (for forecast and sale). The template comes filled with your locations.",
-  lsale:"Location, Item code, Item name, then one column per date (06-11-2026, 05-11-2026 …) with the MT sale in pcs, like the MT loss file. For a loss on a date, the MT sale from the 1st of the month up to that date is compared with the month's MT forecast. Each upload replaces only the dates in it. Without it the current MTD sale is used.",
+  lsale:"Date, Item code, Item name, Sales channel, Location, Qty (pcs), one row per sale. All channels can be in the file; only MT is used. For a loss on a date, the MT sale from the 1st of the month up to that date is compared with the month's MT forecast. Each upload replaces only the dates in it. Without it the current MTD sale is used.",
 items:"Item number, Item name, Brand, Item Type, Final Code, Final Item Name, BOM, SCM PIC, Item Status, Case Lot, Case Wgt., MRP, Location, Length CM, Breath CM, Height CM, CBM, Category, Sub Category. SCM PIC drives the POC filter; a blank CBM is worked out from the carton size. Upload again when items change.",
   forecast:"One sheet: item code and name, then a column per channel and depot, such as “AVT | Chennai”. Total monthly forecast in pcs.",
   direct:"Same layout as the forecast. The part of the forecast planned as direct sale from the plant. It is taken off the forecast, channel by channel, before orders and reports are worked out.",
@@ -872,7 +885,9 @@ function lossSummary(p){const out=[],cfg=S.D.cfg,{depOf,mothers}=lossMap(),have=
     if(p.badDates)out.push(`<p class="notice">${n0.format(p.badDates)} rows skipped because the Date could not be read.</p>`);
     const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} codes are not in the item master.</p>`);return out}
   if(p.kind==="lsale"){const noDep=p.locs.filter(l=>!depOf(l));
-    out.push(`<p><b>${n0.format(p.rows)} rows</b> for <b>${n0.format(p.n)} items</b> at <b>${p.locs.length} locations</b>, ${p.nDates} dates from ${esc(dmy(p.dateFrom))} to ${esc(dmy(p.dateTo))}. Total MT sale ${n0.format(p.total)} pcs.</p>`,
+    if(p.long)out.push(`<p class="muted">Sales channels in the file: ${p.chs.map(([c,n])=>`${esc(c)} (${n0.format(n)} rows)`).join(", ")}. Only MT is kept${p.otherRows?`; ${n0.format(p.otherRows)} rows of other channels are left out`:""}.</p>`);
+    if(p.badDates)out.push(`<p class="notice">${n0.format(p.badDates)} MT rows skipped because the Date could not be read.</p>`);
+    out.push(`<p><b>${n0.format(p.rows)} rows</b>${p.long?" (all channels)":""} for <b>${n0.format(p.n)} items</b> at <b>${p.locs.length} locations</b>, ${p.nDates} dates from ${esc(dmy(p.dateFrom))} to ${esc(dmy(p.dateTo))}. Total MT sale ${n0.format(p.total)} pcs.</p>`,
       `<p class="muted">These ${p.nDates} dates replace any MT sale already saved for them; earlier dates stay. Used only by the MT sale loss report.</p>`);
     if(noDep.length)out.push(`<p class="notice">No order depot found for: ${noDep.map(esc).join(", ")}. Put them in the mother depot list with their Depot.</p>`);
     const m=miss(p.codes);if(m)out.push(`<p class="notice">${n0.format(m)} item codes are not in the item master.</p>`);return out}
@@ -1033,9 +1048,8 @@ function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Ma
     const phy=one(0);phy[0].push("Plant FG");const inPhy=new Set(phy.slice(1).map(r=>String(r[0])));phy.slice(1).forEach(r=>r.push(r4(fgm.get(String(r[0]))||0)));
     fgm.forEach((q,c)=>{if(!inPhy.has(c)&&q){const r=[c,nm(c),...cfg.depots.map(()=>0),r4(q)];phy.push(r)}});
     sheets=[["Phy",phy],["Transit",one(1)],["Reserve",one(2)]]}
-  else if(k==="lsale"){const ds=[...new Set((S.dsale||[]).flatMap(x=>x.dates))].sort().reverse(),dp=new Map(ds.map((d,j)=>[d,j])),by=new Map();
-    (S.dsale||[]).forEach(x=>{for(let t=0;t<x.r.length;t+=4){const loc=x.locs[x.r[t+1]],c=String(x.codes[x.r[t]]),kk=loc+"\u0001"+c;let a=by.get(kk);if(!a)by.set(kk,a={loc,c,v:new Array(ds.length).fill(0)});a.v[dp.get(x.dates[x.r[t+2]])]+=x.r[t+3]}});
-    sheets=[["MT sale",[["Location","Item code","Item name",...ds.map(dmy)],...[...by.values()].map(a=>[a.loc,a.c,nm(a.c)||fnm(a.c),...a.v.map(r4)])]]]}
+  else if(k==="lsale"){const rows=[["Date","Item code","Item name","Sales channel","Location","Qty"]];(S.dsale||[]).forEach(x=>{for(let t=0;t<x.r.length;t+=4){const c=String(x.codes[x.r[t]]);rows.push([dmy(x.dates[x.r[t+2]]),c,nm(c)||fnm(c),"MT",x.locs[x.r[t+1]],r4(x.r[t+3])])}});
+    rows.splice(1,rows.length,...rows.slice(1).sort((a,b)=>{const da=a[0].split("-").reverse().join(""),db=b[0].split("-").reverse().join("");return da<db?-1:da>db?1:String(a[4]).localeCompare(b[4])}));sheets=[["MT sale",rows]]}
   else if(k==="mdmap")sheets=[["Mother depot",[["Location","Depot","Mother Depot 1","Mother Depot 2"],...(S.mdmap||[]).map(r=>[r.loc,r.dep,r.m1,r.m2])]]];
   else if(k==="dstock"){const locs=[];(S.dst||[]).forEach(x=>x.locs.forEach(l=>{if(!locs.includes(l))locs.push(l)}));const rows=[["Date","Final Code","Final Name",...locs]];
     (S.dst||[]).forEach(x=>{const li=x.locs.map(l=>locs.indexOf(l)),by=new Map();for(let t=0;t<x.r.length;t+=3){let a=by.get(x.r[t]);if(!a)by.set(x.r[t],a=new Array(locs.length).fill(0));a[li[x.r[t+1]]]+=x.r[t+2]}
