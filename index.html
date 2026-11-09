@@ -1925,8 +1925,11 @@ function lossData(){const mo=lossMonth(),fsel=lossFc(mo),ssel=lossSale(mo),lsl=S
     if(st){o.ds=sq(st,loc,code);o.r1=Math.min(rest,Math.max(0,o.ds));rest-=o.r1}           /* 1. the depot had the stock (next stock date) */
     if(rest>0&&Sl>=F){o.r4=rest;rest=0}                                                   /* 2. MT already billed the forecast up to that date */
     if(rest>0&&!st){o.nd=rest;rest=0}
-    if(rest>0&&M.length){o.md=onOrBefore(sdays,addDays(date,-2));if(o.md){const s2=stockAt(o.md);o.ms=M.reduce((s,m)=>s+sq(s2,m,code),0);o.r2=Math.min(rest,Math.max(0,o.ms));rest-=o.r2}}  /* 3. mother depot had stock 2 days before */
-    if(rest>0){const fo=facOn(addDays(date,-o.lt),code);if(fo){o.fd=fo.d;o.fs=fo.q;o.r2f=Math.min(rest,Math.max(0,o.fs));o.r3=rest-o.r2f}else o.nf=rest}  /* 4. factory had stock transit+2 days before, else 5. nobody had it */
+    /* mother depot stock (2 days before) and factory stock (transit + 2 days before) are shown for every loss line */
+    if(M.length){o.md=onOrBefore(sdays,addDays(date,-2));if(o.md){const s2=stockAt(o.md);o.ms=M.reduce((s,m)=>s+sq(s2,m,code),0)}}
+    o.fdt=addDays(date,-o.lt);const fo=facOn(o.fdt,code);if(fo){o.fd=fo.d;o.fs=fo.q}
+    if(rest>0&&o.ms!=null){o.r2=Math.min(rest,Math.max(0,o.ms));rest-=o.r2}  /* 3. mother depot had stock 2 days before */
+    if(rest>0){if(fo){o.r2f=Math.min(rest,Math.max(0,o.fs));o.r3=rest-o.r2f}else o.nf=rest}  /* 4. factory had stock transit+2 days before, else 5. nobody had it */
     if(dv!==1)LKEYS.forEach(k=>{if(o[k]!=null)o[k]/=dv});
     lines.push(o)}
   const agg=()=>({q:0,r1:0,r2:0,r2f:0,r3:0,r4:0,nd:0,nf:0,n:0}),put=(m,k)=>{let a=m.get(k);if(!a)m.set(k,a=agg());return a},tot=agg(),byLoc=new Map(),byItem=new Map(),byDate=new Map();
@@ -1971,8 +1974,8 @@ function saveLoss(){const L=lossData(),show=LR.filter(([k])=>k.startsWith("r")||
   const loc=[["Location","Order depot","Mother depots",`MT loss (${U})`,...hd,"Main reason"],...[...L.byLoc.entries()].sort((a,b)=>b[1].q-a[1].q).map(([l,a])=>[l,dn(L.depOf(l)),L.mothers(l).join(", "),r(a.q),...cols(a),mainReason(a)]),["Total","","",r(L.tot.q),...cols(L.tot),""]];
   const item=[["Final Code","Final Name",`MT loss (${U})`,...hd,"Main reason"],...[...L.byItem.entries()].sort((a,b)=>b[1].q-a[1].q).map(([c,a])=>[c,L.nameOf(c),r(a.q),...cols(a),mainReason(a)])];
   const date=[["Date",`MT loss (${U})`,...hd],...[...L.byDate.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([d,a])=>[dmy(d),r(a.q),...cols(a)])];
-  const det=[["Date","Location","Order depot","Final Code","Final Name",`MT loss (${U})`,"Stock date used","Stock at location","Mother depot 1","Mother depot 2","Mother depot stock date (loss − 2 days)","Stock at mother depots","Factory lead days (transit + 2)","Factory stock date","Factory stock","MT forecast (month)",L.ssel==="up"?"MT sale up to loss date":"MT sale (MTD)","MT sale % of forecast",...show.map(([,l])=>l),"Main reason"],
-    ...L.lines.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.loc.localeCompare(b.loc)||b.q-a.q).map(o=>[dmy(o.date),o.loc,dn(o.dep),o.code,L.nameOf(o.code),r(o.q),o.sd?dmy(o.sd):"",r(o.ds),o.M[0]||"",o.M[1]||"",o.md?dmy(o.md):"",r(o.ms),o.lt,o.fd||"",r(o.fs),r(o.F),r(o.Sl),o.F?+(o.Sl/o.F*100).toFixed(1):"",...show.map(([k])=>r(o[k])),mainReason(o)])];
+  const det=[["Date","Location","Order depot","Final Code","Final Name",`MT loss (${U})`,"Stock date used","Stock at location","Mother depot 1","Mother depot 2","Mother depot stock date (loss − 2 days)","Stock at mother depots","Factory lead days (transit + 2)","Factory check date (loss − lead days)","Factory stock date used","Factory stock","MT forecast (month)",L.ssel==="up"?"MT sale up to loss date":"MT sale (MTD)","MT sale % of forecast",...show.map(([,l])=>l),"Main reason"],
+    ...L.lines.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.loc.localeCompare(b.loc)||b.q-a.q).map(o=>[dmy(o.date),o.loc,dn(o.dep),o.code,L.nameOf(o.code),r(o.q),o.sd?dmy(o.sd):"",r(o.ds),o.M[0]||"",o.M[1]||"",o.md?dmy(o.md):"",r(o.ms),o.lt,o.fdt?dmy(o.fdt):"",o.fd||"",r(o.fs),r(o.F),r(o.Sl),o.F?+(o.Sl/o.F*100).toFixed(1):"",...show.map(([k])=>r(o[k])),mainReason(o)])];
   save(`MT sale loss reasons ${monLabel(L.mo)} ${stamp()}.xlsx`,[["Summary",sum],["By location",loc],["By item",item],["By date",date],["Detail",det]])}
 function viewReports(){
   const R=S.res;if(!R)return need();
