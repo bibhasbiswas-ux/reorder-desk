@@ -1019,7 +1019,23 @@ function zeroFill(aoa){const isData=r=>Array.isArray(r)&&r.some(v=>typeof v==="n
   for(let c=0;c<width;c++)if(!num.has(c)&&!txt.has(c)&&heads.length&&!heads.some(h=>TEXTH.test(String(h[c]??""))))num.add(c);  /* a column with no figures at all (e.g. a depot with nothing to report) */
   const cols=[...num].filter(c=>!txt.has(c));if(!cols.length)return aoa;
   return aoa.map(r=>{if(!isData(r))return r;const o=r.slice();cols.forEach(c=>{if(blank(o[c]))o[c]=0});return o})}
-function book(sheets,fill){const wb=XLSX.utils.book_new();sheets.forEach(([name,aoa,merges])=>{const ws=XLSX.utils.aoa_to_sheet(fill?zeroFill(asNum(aoa)):asNum(aoa));if(merges)ws["!merges"]=merges;XLSX.utils.book_append_sheet(wb,ws,name)});
+/* every report download gets Case Lot, Category and Sub Category next to the item name (from the item master, by Final Code) */
+function itemInfo(){const F=DFv().items,R=S.D.items,fp=new Map(),rp=new Map();if(F)F.code.forEach((c,i)=>fp.set(String(c),i));if(R)R.code.forEach((c,i)=>rp.set(String(c),i));
+  return c=>{c=String(c??"").trim();if(!c)return null;let i=fp.get(c);if(i!=null)return [Core.num(F.csLot[i])||"",F.cat[i]||"",F.sub[i]||""];i=rp.get(c);if(i!=null)return [Core.num(R.csLot[i])||"",R.cat[i]||"",R.sub[i]||""];
+    i=fp.get(fcode(c));return i!=null?[Core.num(F.csLot[i])||"",F.cat[i]||"",F.sub[i]||""]:null}}
+const INFO_COLS=[["Case Lot","caselot"],["Category","category"],["Sub Category","subcategory"]];
+function addItemInfo(sheets){if(!S.D||!S.D.items)return sheets;const info=itemInfo();
+  return sheets.map(sh=>{let [name,aoa,merges]=sh;if(!Array.isArray(aoa))return sh;let h=-1,c=-1;
+    for(let r=0;r<Math.min(aoa.length,4)&&h<0;r++){const row=aoa[r]||[];for(let j=0;j<row.length;j++){const k=Core.key(row[j]);if(k==="itemcode"||k==="finalcode"||k==="itemnumber"){h=r;c=j;break}}}
+    if(h<0)return sh;const vals=aoa.map((row,r)=>r>h&&Array.isArray(row)?info(row[c]):null);
+    /* each missing column goes next to its partner: Sub Category after Category, otherwise after the item name */
+    INFO_COLS.forEach(([lab,k],ix)=>{const hk=(aoa[h]||[]).map(Core.key);if(hk.includes(k))return;
+      const nameAt=hk.findIndex((x,j)=>j>c&&(x==="itemname"||x==="finalname"||x==="finalitemname"||x==="productname")),catAt=hk.indexOf("category"),clAt=hk.indexOf("caselot");
+      const p=(k==="subcategory"&&catAt>=0?catAt:k==="category"&&clAt>=0&&clAt>c?clAt:nameAt>=0?nameAt:c)+1;
+      aoa=aoa.map((row,r)=>{if(!Array.isArray(row))return row;const a=row.slice();while(a.length<p)a.push("");a.splice(p,0,r<h?"":r===h?lab:(vals[r]?vals[r][ix]:""));return a});
+      if(merges)merges=merges.map(m=>({s:{...m.s,c:m.s.c>=p?m.s.c+1:m.s.c},e:{...m.e,c:m.e.c>=p?m.e.c+1:m.e.c}}))});
+    return [name,aoa,merges]})}
+function book(sheets,fill){const wb=XLSX.utils.book_new();if(fill)sheets=addItemInfo(sheets);sheets.forEach(([name,aoa,merges])=>{const ws=XLSX.utils.aoa_to_sheet(fill?zeroFill(asNum(aoa)):asNum(aoa));if(merges)ws["!merges"]=merges;XLSX.utils.book_append_sheet(wb,ws,name)});
   return XLSX.write(wb,{type:"array",bookType:"xlsx",compression:true})}
 async function save(name,sheets){if(!window.XLSX){toast("The Excel writer did not load. Reload the page.");return}
   if(!/^Template|^Safety stock days|^Last upload/.test(name)&&S.W)name=name.replace(/\.xlsx$/,`${anyFilt()?" - "+filtLabel():""} (${UH()}).xlsx`);
@@ -1219,7 +1235,8 @@ function viewOrders(){
 }
 function rowsFor(k,onlyOrdered){const it=S.wD.items,q=S.q.toLowerCase(),out=[],d=S.res.depots[k];
   for(let i=0;i<S.res.n;i++){if(onlyOrdered&&d.qty[i]<=0)continue;if(q&&!(it.code[i]+" "+it.name[i]+" "+it.brand[i]).toLowerCase().includes(q))continue;out.push(i)}return out}
-const itemCell=i=>{const it=S.wD.items;return `<div class="nm">${esc(it.name[i])}</div><div class="mt"><span class="mono">${esc(it.code[i])}</span>${it.brand[i]?" · "+esc(it.brand[i]):""}</div>`};
+const clTag=(it,i)=>{const l=Core.num(it.csLot&&it.csLot[i]);return l?`<div class="mt">Case lot ${n0.format(l)}</div>`:""};
+const itemCell=i=>{const it=S.wD.items,cl=Core.num(it.csLot[i]),cs=[it.cat[i],it.sub[i]].filter(Boolean).join(" / ");return `<div class="nm">${esc(it.name[i])}</div><div class="mt"><span class="mono">${esc(it.code[i])}</span>${it.brand[i]?" · "+esc(it.brand[i]):""}${cs?" · "+esc(cs):""}${cl?" · CL "+n0.format(cl):""}</div>`};
 function work(d,i){
   const x=Core.detail(d,i),li=(a,b,c)=>`<li class="${c||""}"><span>${a}</span><span>${b}</span></li>`,wd=S.D.cfg.workDays;
   const list=(title,rows,total)=>`<div><h3>${title}</h3><ol>${rows.map(([f,v])=>li(esc(f),n2.format(v))).join("")}${li("Total",n2.format(total),"tot")}</ol></div>`;
@@ -1387,7 +1404,7 @@ function viewUnbilled(){const R=S.res,it=S.wD.items,U=unbData(),q=S.q.toLowerCas
   return bar+`<div class="panel"><div class="scroll"><table><thead><tr><th rowspan="2">Item Code</th><th rowspan="2">Item Name</th><th rowspan="2">Category</th><th rowspan="2">Sub-Category</th><th rowspan="2">POC</th>${deps.map(u=>`<th colspan="4" class="n g">${esc(u.name)}</th>`).join("")}</tr>
     <tr>${deps.map(()=>`<th class="n">Ecom ageing PO</th><th class="n">Stock</th><th class="n">CBM</th><th class="n">MT</th>`).join("")}</tr></thead><tbody>
     <tr><td colspan="5" class="nm">${n0.format(list.length)} items</td>${T.map(t=>`<td class="n"><b>${nq.format(t.po)}</b></td><td class="n"><b>${nq.format(t.st)}</b></td><td class="n"><b>${n2.format(t.cbm)}</b></td><td class="n"><b>${n2.format(t.mt)}</b></td>`).join("")}</tr>
-    ${list.map(i=>`<tr><td class="mono">${esc(it.code[i])}</td><td>${esc(it.name[i])}</td><td>${esc(it.cat[i])}</td><td>${esc(it.sub[i])}</td><td>${esc(it.poc[i])}</td>${deps.map(u=>cell(u.by.get(i))).join("")}</tr>`).join("")}
+    ${list.map(i=>`<tr><td class="mono">${esc(it.code[i])}</td><td>${esc(it.name[i])}${clTag(it,i)}</td><td>${esc(it.cat[i])}</td><td>${esc(it.sub[i])}</td><td>${esc(it.poc[i])}</td>${deps.map(u=>cell(u.by.get(i))).join("")}</tr>`).join("")}
   </tbody></table></div></div>`}
 function saveUnbilled(){const it=S.wD.items,U=unbData(),r2=v=>+v.toFixed(3),r1=v=>+v.toFixed(2),items=new Set();U.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
   const list=[...items].sort((a,b)=>String(it.code[a]).localeCompare(String(it.code[b]),undefined,{numeric:true}));
@@ -1428,7 +1445,7 @@ function depotReport({U,sel,selId,dlAct,note,empty,cols,cell,tot,sortKey,tiles,e
   return bar+`<div class="panel"><div class="scroll"><table><thead><tr><th rowspan="2">Item Code</th><th rowspan="2">Item Name</th><th rowspan="2">Category</th><th rowspan="2">Sub-Category</th><th rowspan="2">POC</th>${deps.map(u=>`<th colspan="${cols.length}" class="n g">${esc(u.name)}</th>`).join("")}</tr>
     <tr>${deps.map(()=>cols.map(c=>`<th class="n">${c}</th>`).join("")).join("")}</tr></thead><tbody>
     <tr><td colspan="5" class="nm">${n0.format(list.length)} items</td>${deps.map(u=>tot(u.rows.filter(r=>list.includes(r.i)))).join("")}</tr>
-    ${list.map(i=>`<tr><td class="mono">${esc(it.code[i])}</td><td>${esc(it.name[i])}</td><td>${esc(it.cat[i])}</td><td>${esc(it.sub[i])}</td><td>${esc(it.poc[i])}</td>${deps.map(u=>u.by.has(i)?cell(u.by.get(i)):dash).join("")}</tr>`).join("")}
+    ${list.map(i=>`<tr><td class="mono">${esc(it.code[i])}</td><td>${esc(it.name[i])}${clTag(it,i)}</td><td>${esc(it.cat[i])}</td><td>${esc(it.sub[i])}</td><td>${esc(it.poc[i])}</td>${deps.map(u=>u.by.has(i)?cell(u.by.get(i)):dash).join("")}</tr>`).join("")}
   </tbody></table></div></div>`}
 const sumR=(rows,f)=>rows.reduce((s,r)=>s+f(r),0);
 function viewEcomNoPO(){const has=DFv().ecomsku&&DFv().ecomsku.get("all"),pc=enpPct();
@@ -1790,7 +1807,7 @@ function viewFA(){ensureArch();const loading=!S.arch,months=loading?[]:faMonths(
   const dash=`<td class="n g muted">–</td><td class="n muted">–</td><td class="n muted">–</td><td class="muted">–</td>`;
   const tb=`<div class="panel"><div class="scroll"><table><thead><tr><th rowspan="3">Item Code</th><th rowspan="3">Item Name</th><th rowspan="3">Brand</th><th rowspan="3">Category</th><th rowspan="3">Sub-Category</th><th rowspan="3">POC</th>${locH}</tr><tr>${chH}</tr>
     <tr>${[...G.cols,{}].map(()=>`<th class="n g">Forecast</th><th class="n">Sale</th><th class="n">Accuracy</th><th>Remark</th>`).join("")}</tr></thead><tbody>
-    ${G.list.slice(0,MAX).map(r=>`<tr><td class="mono">${esc(it.code[r.i])}</td><td>${esc(it.name[r.i])}</td><td>${esc(it.brand[r.i])}</td><td>${esc(it.cat[r.i])}</td><td>${esc(it.sub[r.i])}</td><td>${esc(it.poc[r.i])}</td>${G.cols.map(c=>{const x=r.c.get(c.dep+"|"+c.ck);return x?cells(x.f,x.a,c.tot?"tcol":""):dash}).join("")}${cells(r.f,r.a,"tcol")}</tr>`).join("")}
+    ${G.list.slice(0,MAX).map(r=>`<tr><td class="mono">${esc(it.code[r.i])}</td><td>${esc(it.name[r.i])}${clTag(it,r.i)}</td><td>${esc(it.brand[r.i])}</td><td>${esc(it.cat[r.i])}</td><td>${esc(it.sub[r.i])}</td><td>${esc(it.poc[r.i])}</td>${G.cols.map(c=>{const x=r.c.get(c.dep+"|"+c.ck);return x?cells(x.f,x.a,c.tot?"tcol":""):dash}).join("")}${cells(r.f,r.a,"tcol")}</tr>`).join("")}
   </tbody></table></div></div>${G.list.length>MAX?`<p class="muted" style="margin-top:8px">Showing the ${MAX} items with the biggest gaps out of ${n0.format(G.list.length)}. Use search or the location filter, or download for all items.</p>`:""}`;
   return bar+kpi+sumT+`<p class="muted" style="margin:0 0 8px">${n0.format(G.list.length)} items, biggest gaps first. Each location shows only the channels it has, then its total.</p>`+tb}
 function faSheet(G,F,it){const pa=v=>v==null?"":+(v*100).toFixed(1),grp=c=>[c.depN,c.depN,c.depN,c.depN];
@@ -1825,7 +1842,7 @@ function viewShortfall(){
   ${hasSS()?"":`<p class="notice" style="margin-bottom:10px">No brand safety days are set yet, so every shortfall is zero. Add them under Settings, Safety stock days by brand and depot.</p>`}`;
   return bar+`<div class="panel"><div class="scroll"><table><thead><tr><th>Item Code</th><th>Item Name</th><th>Category</th><th>Sub-Category</th>${SF.map(x=>`<th class="n">${esc(x.name)}</th>`).join("")}<th class="n g">Total</th><th class="n">Factory FG</th><th class="n">Balance pending</th><th class="n">Ecom direct plan</th><th class="n">Factory direct plan</th><th class="n">Balance FG</th></tr></thead><tbody>
     <tr><td colspan="4" class="nm">${n0.format(list.length)} items shown${show==="short"?`, short at ${nShort.filter(Boolean).length} depots`:""}</td>${colTot.map(v=>`<td class="n"><b>${fmt(v)}</b></td>`).join("")}<td class="n g big">${fmt(all)}</td>${[FG.fg,FG.balT,FG.eplT,FG.dpl,FG.fresh].map(a=>`<td class="n"><b>${a?nq.format(list.reduce((s,i)=>s+a[i],0)):0}</b></td>`).join("")}</tr>
-    ${list.map(i=>`<tr><td class="mono">${esc(it.code[i])}</td><td>${esc(it.name[i])}</td><td>${esc(it.cat[i])}</td><td>${esc(it.sub[i])}</td>${SF.map(x=>{const v=pick(x)[i];return `<td class="n ${show==="short"&&v>0?"behind":""}">${v?fmt(v):'<span class="muted">0</span>'}</td>`}).join("")}<td class="n g"><b>${fmt(tot[i])}</b></td>${[FG.fg,FG.balT,FG.eplT,FG.dpl,FG.fresh].map(a=>`<td class="n">${a&&a[i]?nq.format(a[i]):'<span class="muted">0</span>'}</td>`).join("")}</tr>`).join("")}
+    ${list.map(i=>`<tr><td class="mono">${esc(it.code[i])}</td><td>${esc(it.name[i])}${clTag(it,i)}</td><td>${esc(it.cat[i])}</td><td>${esc(it.sub[i])}</td>${SF.map(x=>{const v=pick(x)[i];return `<td class="n ${show==="short"&&v>0?"behind":""}">${v?fmt(v):'<span class="muted">0</span>'}</td>`}).join("")}<td class="n g"><b>${fmt(tot[i])}</b></td>${[FG.fg,FG.balT,FG.eplT,FG.dpl,FG.fresh].map(a=>`<td class="n">${a&&a[i]?nq.format(a[i]):'<span class="muted">0</span>'}</td>`).join("")}</tr>`).join("")}
   </tbody></table></div></div>`;
 }
 function saveShortfall(){const R=S.res,it=S.wD.items,SF=sfData(),days=drrDays(),r1=v=>+v.toFixed(2);
@@ -1899,7 +1916,7 @@ function lossData(){const mo=lossMonth(),fsel=lossFc(mo),ssel=lossSale(mo),lsl=S
     lines.push(o)}
   const agg=()=>({q:0,r1:0,r2:0,r2f:0,r3:0,r4:0,nd:0,nf:0,n:0}),put=(m,k)=>{let a=m.get(k);if(!a)m.set(k,a=agg());return a},tot=agg(),byLoc=new Map(),byItem=new Map(),byDate=new Map();
   lines.forEach(o=>[tot,put(byLoc,o.loc),put(byItem,o.code),put(byDate,o.date)].forEach(a=>{a.n++;a.q+=o.q;LR.forEach(([k])=>a[k]+=o[k])}));
-  return S.lossCache={key,mo,fsel,ssel,lines,tot,byLoc,byItem,byDate,nameOf,depOf,mothers,locsAll:[...locsAll].sort(),hasStock:dmap.size>0,hasFac:fmap.size>0}}
+  return S.lossCache={key,mo,fsel,ssel,lines,tot,byLoc,byItem,byDate,nameOf,info:itemInfo(),depOf,mothers,locsAll:[...locsAll].sort(),hasStock:dmap.size>0,hasFac:fmap.size>0}}
 const mainReason=a=>{let b=null;LR.forEach(([k,l])=>{if(a[k]>0&&(!b||a[k]>a[b[0]]))b=[k,l]});return b?b[1]:""};
 const pctOfQ=(v,t)=>t?n0.format(v/t*100)+"%":"–";
 function viewLossTab(){const files=`<div class="panel" style="margin-top:16px"><div class="pad" style="padding-bottom:0"><h2>Sale loss files</h2><p class="muted">The files behind this report. They do not change the orders.</p></div><ol class="ups">${LOSS_ORDER.map(upLi).join("")}</ol></div>`;
@@ -1928,7 +1945,7 @@ function viewLoss(){ensureLoss();const ms=S.mloss?lossMonths():[];
   locRows.push(["<b>Total</b>","","",`<b>${nq.format(T.q)}</b>`,...show.map(([k])=>`<b>${nq.format(T[k])}</b><div class="mt">${pctOfQ(T[k],T.q)}</div>`)]);
   const MAX=300,items=[...L.byItem.entries()].sort((a,b)=>b[1].q-a[1].q);
   const itT=`<div class="panel"><div class="scroll"><table><thead><tr><th>Final Code</th><th>Final Name</th><th class="n">MT loss</th>${show.map(([,l])=>`<th class="n">${esc(l)}</th>`).join("")}<th>Main reason</th></tr></thead><tbody>
-    ${items.slice(0,MAX).map(([c,a])=>`<tr><td class="mono">${esc(c)}</td><td>${esc(L.nameOf(c))}</td><td class="n"><b>${nq.format(a.q)}</b></td>${show.map(([k])=>`<td class="n">${a[k]?nq.format(a[k]):'<span class="muted">–</span>'}</td>`).join("")}<td>${esc(mainReason(a))}</td></tr>`).join("")}</tbody></table></div></div>
+    ${items.slice(0,MAX).map(([c,a])=>`<tr><td class="mono">${esc(c)}</td><td>${esc(L.nameOf(c))}${(()=>{const v=L.info(c);if(!v)return "";const t=[v[1],v[2]].filter(Boolean).join(" / ");return `<div class="mt">${esc(t)}${v[0]?(t?" · ":"")+"Case lot "+n0.format(v[0]):""}</div>`})()}</td><td class="n"><b>${nq.format(a.q)}</b></td>${show.map(([k])=>`<td class="n">${a[k]?nq.format(a[k]):'<span class="muted">–</span>'}</td>`).join("")}<td>${esc(mainReason(a))}</td></tr>`).join("")}</tbody></table></div></div>
     ${items.length>MAX?`<p class="muted" style="margin-top:8px">Showing the ${MAX} items with the biggest loss out of ${n0.format(items.length)}. Download for all items and the date-wise detail.</p>`:""}`;
   if(!L.lines.length)return bar+`<div class="panel empty"><p>No MT loss${S.q||S.rep.lsl||anyFilt()?" for these filters":""} in ${esc(monLabel(mo))}.</p></div>`;
   return bar+kpi+warn.map(w=>`<p class="notice" style="margin-bottom:10px">${w}</p>`).join("")+`<div class="panel pad hscroll" style="margin-bottom:12px"><h3 style="margin:0">By location</h3>${tbl(head,locRows)}</div>`+
