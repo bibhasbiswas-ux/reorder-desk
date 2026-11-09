@@ -1119,7 +1119,7 @@ function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Ma
       mp.set(dep,{codes,fields:a.chs,v})});sheets=[["Forecast",wide(mp,cfg.fcCh,true)]];extra=` ${monLabel(a.month)}`}
   else{toast("This upload cannot be downloaded.");return}
   const when=m&&m.at?new Date(m.at):new Date(),p=n=>String(n).padStart(2,"0");
-  save(`Last upload - ${label}${extra} - ${when.getFullYear()}-${p(when.getMonth()+1)}-${p(when.getDate())}.xlsx`,sheets)}
+  save(`Last upload - ${label}${extra}${S.lastTag||""} - ${when.getFullYear()}-${p(when.getMonth()+1)}-${p(when.getDate())}.xlsx`,sheets)}
 function saveTemplate(kind){save(`Template - ${Core.KINDS[kind].label}.xlsx`,Core.templateBook(kind,S.D))}
 const pctOf=(f,s)=>f>0?s/f:null;
 function saveReport(){const R=S.res,F=S.fvsCache||(S.fvsCache=Core.fvs(R)),it=S.wD.items,gone=monthGone();
@@ -1213,11 +1213,18 @@ function viewGate(){
       <button class="btn link" type="button" data-act="${up?"mode-in":"mode-up"}">${up?"I already have an account":"First time here? Create an account"}</button></div>
     ${up?`<p class="muted">Use the email an admin added to the member list.</p>`:`<p><button class="btn link" type="button" data-act="forgot">Forgot password</button></p>`}</form>`;
 }
+/* date-wise uploads are kept month by month: show each saved month, with its own download */
+const MONTHLY=new Set(["dstock","fstock","pstock","mtloss","lsale"]);
+function monthChips(k,m){if(!MONTHLY.has(k)||!m)return "";const by=new Map();(m.dates||[]).forEach(d=>by.set(d.slice(0,7),(by.get(d.slice(0,7))||0)+1));(m.months||[]).forEach(mo=>{if(!by.has(mo))by.set(mo,0)});
+  const ms=[...by.keys()].sort();if(!ms.length)return "";
+  return `<span>Saved months:</span><span style="display:flex;flex-wrap:wrap;gap:4px">${ms.map(mo=>Store.canSave()?`<button class="btn sm" data-lastm="${k}|${mo}" title="Download ${esc(monLabel(mo))} only">${esc(monLabel(mo))}${by.get(mo)?` · ${by.get(mo)} days`:""}</button>`:`<span class="pill off">${esc(monLabel(mo))}</span>`).join("")}</span>`}
+function saveLastMonth(k,mo){const keys={dstock:"dst",fstock:"fst",pstock:"pst",mtloss:"mloss",lsale:"dsale"},sk=keys[k];if(!S[sk]){ensureLoss();toast("Loading the saved data. Press the button again in a moment.");return}
+  const all=S[sk];S[sk]=all.filter(x=>String(x.key).slice(0,7)===mo);S.lastTag=" "+monLabel(mo);try{saveLast(k)}finally{S[sk]=all;S.lastTag=""}}
 function upLi(k,i){const w=S.sess.canWrite;
   const broken=k=>{const m=S.meta.get(k);if(!m)return false;if(k==="items")return !S.D.items;if(!(S.D[k] instanceof Map))return false;return (m.depots||[]).some(id=>!S.D[k].has(id))};
 const K=Core.KINDS[k],m=S.meta.get(k),stale=m&&K.daily&&!isToday(m.at),bad=broken(k);
     return `<li><span class="no">${i+1}</span><div><h2>${K.label}</h2><p class="muted">${HELP[k]}</p></div>
-      <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} ${k==="mdmap"?"locations":k==="dstock"?"codes, "+((m.dates||[]).length)+" dates":"items"}${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}`:`<span class="pill off">Not uploaded yet</span>`}</div>
+      <div class="st">${m?`<span class="pill ${bad?"bad":stale?"warn":"ok"}">${bad?"Incomplete, upload again":stale?"Not updated today":"Updated"}</span><span>${when(m.at)}${m.by?" by "+esc(nameOf(m.by)):""}</span><span>${n0.format(m.rows)} ${k==="mdmap"?"locations":k==="dstock"?"codes, "+((m.dates||[]).length)+" dates":"items"}${m.depots&&m.depots.length?", "+m.depots.length+" depots":""}</span>${m.od?`<span>Order date ${esc(dmy(m.od))}</span>`:""}${monthChips(k,m)}`:`<span class="pill off">Not uploaded yet</span>`}</div>
       <div class="bar">${Store.canSave()?`<button class="btn sm" data-tpl="${k}">Template</button>${m?`<button class="btn sm" data-last="${k}">Download last upload</button>`:""}`:""}${w?`<button class="btn sm pri" data-up="${k}">Upload</button>`:""}</div></li>`}
 function viewUpdates(){
   const w=S.sess.canWrite,cfg=S.D.cfg;
@@ -2192,6 +2199,7 @@ document.addEventListener("click",async e=>{
   if(t.dataset.up){S.upKind=t.dataset.up;$("file").value="";$("file").click();return}
   if(t.dataset.tpl){saveTemplate(t.dataset.tpl);return}
   if(t.dataset.last){saveLast(t.dataset.last);return}
+  if(t.dataset.lastm){const [k,mo]=t.dataset.lastm.split("|");saveLastMonth(k,mo);return}
   if(t.dataset.hist){saveHist(t.dataset.hist);return}
   if(t.dataset.covdep){S.rep.dep=t.dataset.covdep;S.q="";render();window.scrollTo(0,0);return}
   if(t.dataset.rmd!==undefined){editCfg().depots.splice(+t.dataset.rmd,1);S.dirty=true;render();return}
