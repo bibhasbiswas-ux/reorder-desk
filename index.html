@@ -1383,7 +1383,7 @@ function saleDay(){const m=S.meta.get("sale"),d=m?new Date(m.at):new Date();d.se
 function ecomAge(){const v=S.D.cfg.ecomAge;return v==null||v===""?6:Core.num(v)}
 function drrDays(){const o=Core.num(S.D.cfg.drrDays);if(o>0)return o;return saleDay().getDate()}
 function sfData(){return S.sfCache||(S.sfCache=Core.shortfall(S.wD,S.res,drrDays()))}
-const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
+const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gtl","GT low pick-up"],["avtl","AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
 /* report types the owner deleted are left out of the list; the owner can delete and restore them */
 const repHidden=()=>new Set(S.repHidden||[]);
 const repVisible=()=>{const h=repHidden();return RVIEWS.filter(([v])=>!h.has(v))};
@@ -1439,11 +1439,18 @@ function enpData(){const R=S.res,it=S.wD.items,L=DFv().ecomsku&&DFv().ecomsku.ge
     const po=chAt(d,"po","ecom",i);if(st>po*(1+lim)+1e-9&&st>po){const ex=st-po,cs=csOf(ex,i);rows.push({i,po,phy:d.phy[i],tr:d.transit[i],st,ex,over:po>0?(st-po)/po:null,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000,fc:chAt(d,"forecast","ecom",i),sale:chAt(d,"sale","ecom",i)})}}
     return {k,name:d.name,rows,by:new Map(rows.map(r=>[r.i,r]))}})}
 /* MT: stock sent against the MT forecast, but MT MTD sale + MT open PO below the set share of the MT forecast */
-const mtPct=()=>{if(S.rep.mtPct!=null)return S.rep.mtPct;const v=S.D.cfg.mtPct;return v==null||v===""?30:Core.num(v)};
-function mtlData(){const R=S.res,it=S.wD.items,lim=mtPct()/100;
-  return R.depots.map((d,k)=>{const rows=[];for(let i=0;i<R.n;i++){const fc=chAt(d,"forecast","mt",i);if(!(fc>0))continue;const st=d.phy[i]+d.reserved[i];if(!(st>0))continue;  /* physical + reserve, transit left out */
-    const sale=chAt(d,"sale","mt",i),po=chAt(d,"po","mt",i),pct=(sale+po)/fc;if(pct<lim){const sf=Math.min(st,fc),cs=csOf(sf,i);rows.push({i,fc,sale,po,pct,st,phy:d.phy[i],rsv:d.reserved[i],sf,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000})}}
+/* low pick-up per channel: stock is at the depot, but channel MTD sale + open PO is below x% of the channel forecast */
+const LOWCH={mtl:{ch:"mt",lab:"MT",parts:["phy","reserved"],stNote:"physical + reserve, transit not counted",stHead:"Stock (physical + reserve)"},
+  gtl:{ch:"gt",lab:"GT",parts:["phy","transit","reserved"],stNote:"physical + transit + reserve",stHead:"Stock (physical + transit + reserve)"},
+  avtl:{ch:"avt",lab:"AVT",parts:["phy","transit","reserved"],stNote:"physical + transit + reserve",stHead:"Stock (physical + transit + reserve)"}};
+const lowKey=v=>v==="mtl"?"mtPct":v+"Pct";
+const lowPct=v=>{const k=lowKey(v);if(S.rep[k]!=null)return S.rep[k];const x=S.D.cfg.mtPct;return x==null||x===""?30:Core.num(x)};
+const mtPct=()=>lowPct("mtl");
+function lowData(v){const C=LOWCH[v],R=S.res,it=S.wD.items,lim=lowPct(v)/100;
+  return R.depots.map((d,k)=>{const rows=[];for(let i=0;i<R.n;i++){const fc=chAt(d,"forecast",C.ch,i);if(!(fc>0))continue;const st=C.parts.reduce((s,p)=>s+(d[p][i]||0),0);if(!(st>0))continue;
+    const sale=chAt(d,"sale",C.ch,i),po=chAt(d,"po",C.ch,i),pct=(sale+po)/fc;if(pct<lim){const sf=Math.min(st,fc),cs=csOf(sf,i);rows.push({i,fc,sale,po,pct,st,phy:d.phy[i],tr:d.transit[i],rsv:d.reserved[i],sf,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000})}}
     return {k,name:d.name,rows,by:new Map(rows.map(r=>[r.i,r]))}})}
+const mtlData=()=>lowData("mtl");
 /* shared layout: item columns, then a group of columns per depot */
 function depotReport({U,sel,selId,dlAct,note,empty,cols,cell,tot,sortKey,tiles,extra,pre}){const it=S.wD.items,q=S.q.toLowerCase();
   const deps=U.filter(u=>!sel||String(u.k)===sel),items=new Set();deps.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
@@ -1471,15 +1478,16 @@ function viewEcomNoPO(){const has=DFv().ecomsku&&DFv().ecomsku.get("all"),pc=enp
     cell:r=>`<td class="n">${r.po?nq.format(r.po):'<span class="muted">0</span>'}</td><td class="n">${nq.format(r.st)}</td><td class="n behind">${nq.format(r.ex)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
     tot:rows=>`<td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.ex))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`,
     sortKey:r=>r.ex,tiles:rows=>`<span><b>${n0.format(rows.length)}</b> SKU-depot lines</span><span><b>${n0.format(rows.filter(r=>!r.po).length)}</b> with no PO</span><span><b>${n0.format(new Set(rows.map(r=>r.i)).size)}</b> SKUs</span><span><b>${nq.format(sumR(rows,r=>r.ex))}</b> ${UL()} excess stock</span><span><b>${n1.format(sumR(rows,r=>r.cbm))}</b> CBM</span><span><b>${n2.format(sumR(rows,r=>r.mt))}</b> MT</span>`})}
-function viewMtLow(){const pc=mtPct(),opts=[...new Set([10,20,30,40,50,60,70,80,90,100,pc])].sort((a,b)=>a-b);
-  return depotReport({U:mtlData(),sel:S.rep.mtld||"",selId:"mtld",dlAct:"dlmtl",
-    extra:`<label class="chk">MT sale + PO below <select id="mtlp" aria-label="MT sale plus PO below">${opts.map(v=>`<option value="${v}" ${v===pc?"selected":""}>${v}%</option>`).join("")}</select> of forecast</label>`,
-    note:`MT stock sent to a depot against the MT forecast (the depot holds stock: physical + reserve, transit not counted), but MT MTD sale + MT open PO is below ${n0.format(pc)}% of the MT forecast (net of the direct sale forecast). Pick-up % = (MT open PO + MT MTD sale) ÷ MT forecast. CBM and MT (metric tonnes) are for the stock up to the forecast = the smaller of stock and MT forecast (forecast 200, stock 400 → 200). Figures in ${UL()}.`,
+function viewLow(v){const C=LOWCH[v],L=C.lab,pc=lowPct(v),opts=[...new Set([10,20,30,40,50,60,70,80,90,100,pc])].sort((a,b)=>a-b);
+  return depotReport({U:lowData(v),sel:S.rep[v+"d"]||"",selId:v+"d",dlAct:"dl"+v,
+    extra:`<label class="chk">${L} sale + PO below <select id="${v}p" aria-label="${L} sale plus PO below">${opts.map(x=>`<option value="${x}" ${x===pc?"selected":""}>${x}%</option>`).join("")}</select> of forecast</label>`,
+    note:`${L} stock sent to a depot against the ${L} forecast (the depot holds stock: ${C.stNote}), but ${L} MTD sale + ${L} open PO is below ${n0.format(pc)}% of the ${L} forecast (net of the direct sale forecast). Pick-up % = (${L} open PO + ${L} MTD sale) ÷ ${L} forecast${L==="MT"?"":` (no ${L} open PO is uploaded, so it counts as 0)`}. CBM and MT (metric tonnes) are for the stock up to the forecast = the smaller of stock and ${L} forecast (forecast 200, stock 400 → 200). Figures in ${UL()}.`,
     empty:!S.meta.get("forecast")?"Upload the forecast to see this report.":"",
-    cols:["MT forecast","MT sale","MT PO","Pick-up %","Stock","CBM","MT"],
+    cols:[`${L} forecast`,`${L} sale`,`${L} PO`,"Pick-up %","Stock","CBM","MT"],
     cell:r=>`<td class="n">${nq.format(r.fc)}</td><td class="n">${nq.format(r.sale)}</td><td class="n">${nq.format(r.po)}</td><td class="n behind">${n0.format(r.pct*100)}%</td><td class="n">${nq.format(r.st)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
     tot:rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return `<td class="n"><b>${nq.format(f)}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.sale))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${f?n0.format(sp/f*100)+"%":"–"}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`},
     sortKey:r=>r.sf,tiles:rows=>`<span><b>${n0.format(rows.length)}</b> item-depot lines</span><span><b>${n0.format(new Set(rows.map(r=>r.i)).size)}</b> items</span><span><b>${nq.format(sumR(rows,r=>r.sf))}</b> ${UL()} stock up to forecast</span><span><b>${n1.format(sumR(rows,r=>r.cbm))}</b> CBM</span><span><b>${n2.format(sumR(rows,r=>r.mt))}</b> MT</span>`})}
+const viewMtLow=()=>viewLow("mtl");
 function depotBook(U,cols,vals,detHead,detRow,sumHead,sumRow){const it=S.wD.items,items=new Set();U.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
   const list=[...items].sort((a,b)=>String(it.code[a]).localeCompare(String(it.code[b]),undefined,{numeric:true}));
   const wide=[["","","","","",...U.flatMap(u=>cols.map(()=>u.name))],["Item Code","Item Name","Category","Sub-Category","POC",...U.flatMap(()=>cols)],
@@ -1491,10 +1499,12 @@ function saveEcomNoPO(){const U=enpData(),pc=enpPct(),[w,d,s]=depotBook(U,[`Ecom
     ["Ecom PO","Physical","Transit","Stock (phy+transit)","Stock over PO %","Excess stock","CBM","MT","Ecom forecast","Ecom MTD sale"],r=>[r2(r.po),r2(r.phy),r2(r.tr),r2(r.st),r.over==null?"No PO":+(r.over*100).toFixed(1),r2(r.ex),r3(r.cbm),r3(r.mt),r2(r.fc),r2(r.sale)],
     ["SKUs","With no PO","Ecom PO","Stock","Excess stock","CBM","MT"],rows=>[rows.length,rows.filter(r=>!r.po).length,r2(sumR(rows,r=>r.po)),r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.ex)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]);
   save(`Ecom stock over PO ${pc}% ${stamp()}.xlsx`,[[`Stock over PO ${pc}%`,w],["Detail by depot",d],["Depot summary",s]])}
-function saveMtLow(){const U=mtlData(),pc=mtPct(),[w,d,s]=depotBook(U,["MT forecast","MT sale","MT PO","Pick-up %",`Stock (${UL()})`,"CBM"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.st),r3(r.cbm)],
-    ["MT forecast","MT MTD sale","MT open PO","Pick-up % ((MT open PO + MT MTD sale) ÷ MT forecast)","Physical","Reserve","Stock (physical + reserve)","Stock up to forecast","CBM","MT"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.phy),r2(r.rsv),r2(r.st),r2(r.sf),r3(r.cbm),r3(r.mt)],
-    ["Items","MT forecast","MT sale","MT PO","Pick-up %","Stock","Stock up to forecast","CBM","MT"],rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return [rows.length,r2(f),r2(sumR(rows,r=>r.sale)),r2(sumR(rows,r=>r.po)),f?+(sp/f*100).toFixed(1):"",r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.sf)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]});
-  save(`MT low pick-up below ${pc}% ${stamp()}.xlsx`,[[`MT below ${pc}%`,w],["Detail by depot",d],["Depot summary",s]])}
+function saveLow(v){const C=LOWCH[v],L=C.lab,U=lowData(v),pc=lowPct(v),hasTr=C.parts.includes("transit");
+  const [w,d,s]=depotBook(U,[`${L} forecast`,`${L} sale`,`${L} PO`,"Pick-up %",`Stock (${UL()})`,"CBM"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.st),r3(r.cbm)],
+    [`${L} forecast`,`${L} MTD sale`,`${L} open PO`,`Pick-up % ((${L} open PO + ${L} MTD sale) ÷ ${L} forecast)`,"Physical",...(hasTr?["Transit"]:[]),"Reserve",C.stHead,"Stock up to forecast","CBM","MT"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.phy),...(hasTr?[r2(r.tr)]:[]),r2(r.rsv),r2(r.st),r2(r.sf),r3(r.cbm),r3(r.mt)],
+    ["Items",`${L} forecast`,`${L} sale`,`${L} PO`,"Pick-up %","Stock","Stock up to forecast","CBM","MT"],rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return [rows.length,r2(f),r2(sumR(rows,r=>r.sale)),r2(sumR(rows,r=>r.po)),f?+(sp/f*100).toFixed(1):"",r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.sf)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]});
+  save(`${L} low pick-up below ${pc}% ${stamp()}.xlsx`,[[`${L} below ${pc}%`,w],["Detail by depot",d],["Depot summary",s]])}
+const saveMtLow=()=>saveLow("mtl");
 /* ---------- dashboard (sales history) ---------- */
 /* sales history is loaded only when the Dashboard (or its upload) is opened, to keep page loads light */
 function ensureHist(){if(S.histOn||S.sess.state!=="ready")return;S.histOn=true;
@@ -2010,7 +2020,7 @@ function viewReports(){
   if(S.rep.view==="sfall")return viewShortfall();
   if(S.rep.view==="unb")return viewUnbilled();
   if(S.rep.view==="enp")return viewEcomNoPO();
-  if(S.rep.view==="mtl")return viewMtLow();
+  if(S.rep.view==="mtl"||S.rep.view==="gtl"||S.rep.view==="avtl")return viewLow(S.rep.view);
   if(S.rep.view==="oc")return viewOC();
   if(S.rep.view==="fa")return viewFA();
   const F=S.fvsCache||(S.fvsCache=Core.fvs(R)),it=S.wD.items,rp=S.rep,gone=monthGone(),hasSale=!!S.meta.get("sale");
@@ -2054,7 +2064,7 @@ function viewHistory(){
 }
 const KLABEL=k=>k==="send"?"Report sent":(Core.KINDS[k]||{label:k}).label;
 const sendHidden=k=>{const h=repHidden();return k==="fvs"?(h.has("sum")&&h.has("item")):h.has(k)};
-const REPORTS=[["orders","Depot orders, all depots"],["order1","Order for one depot"],["master","Master file"],["forecast","Forecast"],["fvs","Forecast vs sale %"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["dash","Dashboard (sales history)"]];
+const REPORTS=[["orders","Depot orders, all depots"],["order1","Order for one depot"],["master","Master file"],["forecast","Forecast"],["fvs","Forecast vs sale %"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gtl","GT low pick-up"],["avtl","AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["dash","Dashboard (sales history)"]];
 function sendSummary(){const R=S.res,cases=R.depots.reduce((a,l)=>a+l.cases,0),cbm=R.depots.reduce((a,l)=>a+l.cbm,0),short=R.fg?R.fg.filter(x=>x.bal<0).length:null,sn=S.snd;
   if(sendHidden(sn.rep)){const f=REPORTS.find(r=>!sendHidden(r[0]));if(f)sn.rep=f[0]}
   const label=(REPORTS.find(r=>r[0]===sn.rep)||["",""])[1]+(sn.rep==="order1"?": "+(R.depots.find(d=>d.id===sn.dep)||R.depots[0]).name:"");
@@ -2089,7 +2099,7 @@ function buildReport(){const R=S.res,sn=S.snd;
   if(sn.rep==="orders")return saveOrders(R.depots.map((_,j)=>j).filter(j=>R.depots[j].cases>0));
   if(sn.rep==="order1")return saveOrders([Math.max(0,R.depots.findIndex(d=>d.id===(sn.dep||R.depots[0].id)))]);
   if(sn.rep==="master")return saveMaster();if(sn.rep==="forecast")return saveForecast();if(sn.rep==="fvs")return saveReport();
-  if(sn.rep==="cov")return saveCoverage();if(sn.rep==="sfall")return saveShortfall();if(sn.rep==="unb")return saveUnbilled();if(sn.rep==="enp")return saveEcomNoPO();if(sn.rep==="mtl")return saveMtLow();if(sn.rep==="oc")return saveOC();if(sn.rep==="fa"){if(!S.arch){ensureArch();toast("Loading. Press Send again in a moment.");return}if(!faMonths().length){toast("Upload a past forecast first.");return}return saveFA()}if(sn.rep==="dash"){if(!S.hist){ensureHist();toast("Loading the sales history. Press Send again in a moment.");return}return saveDashboard()}}
+  if(sn.rep==="cov")return saveCoverage();if(sn.rep==="sfall")return saveShortfall();if(sn.rep==="unb")return saveUnbilled();if(sn.rep==="enp")return saveEcomNoPO();if(sn.rep==="mtl"||sn.rep==="gtl"||sn.rep==="avtl")return saveLow(sn.rep);if(sn.rep==="oc")return saveOC();if(sn.rep==="fa"){if(!S.arch){ensureArch();toast("Loading. Press Send again in a moment.");return}if(!faMonths().length){toast("Upload a past forecast first.");return}return saveFA()}if(sn.rep==="dash"){if(!S.hist){ensureHist();toast("Loading the sales history. Press Send again in a moment.");return}return saveDashboard()}}
 function b64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
 function logSend(sub,n){if(!S.me)return;const a=S.activity.get(S.me)||{};Store.setMany([{col:"activity",id:S.me,data:{logins:0,uploads:0,...a,recent:[{kind:"send",file:sub,at:new Date().toISOString(),rows:n},...(a.recent||[])].slice(0,30)}}]).catch(()=>{})}
 const GMAIL_ERR={server_not_connected:"Gmail is not connected for you. Add it in claude.ai Settings → Connectors, then try again.",needs_reauth:"Your Gmail connection has expired. Reconnect Gmail in claude.ai Settings → Connectors.",
@@ -2251,7 +2261,7 @@ document.addEventListener("click",async e=>{
   else if(a==="dldash")saveDashboard();
   else if(a==="dlstatfc")saveStatFc();
   else if(a==="dlenp")saveEcomNoPO();
-  else if(a==="dlmtl")saveMtLow();
+  else if(a==="dlmtl"||a==="dlgtl"||a==="dlavtl")saveLow(a.slice(2));
   else if(a==="dloc")saveOC();
   else if(a==="dlfa")saveFA();
   else if(a==="dlloss")saveLoss();
@@ -2323,7 +2333,8 @@ document.addEventListener("change",e=>{const t=e.target;
   else if(t.id==="ddep"){S.dash.dep=t.value;render()}
   else if(t.id==="enpp"){S.rep.enpPct=+t.value;render()}
   else if(t.id==="mtlp"){S.rep.mtPct=+t.value;render()}
-  else if(t.id==="mtld"){S.rep.mtld=t.value;render()}
+  else if(t.id==="mtld"||t.id==="gtld"||t.id==="avtld"){S.rep[t.id]=t.value;render()}
+  else if(t.id==="gtlp"||t.id==="avtlp"){S.rep[lowKey(t.id.slice(0,-1))]=+t.value;render()}
   else if(t.id==="ocd"){S.rep.ocd=t.value;render()}
   else if(t.id==="occh"){S.rep.occh=t.value;render()}
   else if(t.id==="fad"){S.rep.fad=t.value;render()}
