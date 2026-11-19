@@ -1441,8 +1441,8 @@ function enpData(){const R=S.res,it=S.wD.items,L=DFv().ecomsku&&DFv().ecomsku.ge
 /* MT: stock sent against the MT forecast, but MT MTD sale + MT open PO below the set share of the MT forecast */
 const mtPct=()=>{if(S.rep.mtPct!=null)return S.rep.mtPct;const v=S.D.cfg.mtPct;return v==null||v===""?30:Core.num(v)};
 function mtlData(){const R=S.res,it=S.wD.items,lim=mtPct()/100;
-  return R.depots.map((d,k)=>{const rows=[];for(let i=0;i<R.n;i++){const fc=chAt(d,"forecast","mt",i);if(!(fc>0))continue;const st=d.phy[i]+d.transit[i];if(!(st>0))continue;
-    const sale=chAt(d,"sale","mt",i),po=chAt(d,"po","mt",i),pct=(sale+po)/fc;if(pct<lim){const sf=Math.min(st,fc),cs=csOf(sf,i);rows.push({i,fc,sale,po,pct,st,sf,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000})}}
+  return R.depots.map((d,k)=>{const rows=[];for(let i=0;i<R.n;i++){const fc=chAt(d,"forecast","mt",i);if(!(fc>0))continue;const st=d.phy[i]+d.reserved[i];if(!(st>0))continue;  /* physical + reserve, transit left out */
+    const sale=chAt(d,"sale","mt",i),po=chAt(d,"po","mt",i),pct=(sale+po)/fc;if(pct<lim){const sf=Math.min(st,fc),cs=csOf(sf,i);rows.push({i,fc,sale,po,pct,st,phy:d.phy[i],rsv:d.reserved[i],sf,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000})}}
     return {k,name:d.name,rows,by:new Map(rows.map(r=>[r.i,r]))}})}
 /* shared layout: item columns, then a group of columns per depot */
 function depotReport({U,sel,selId,dlAct,note,empty,cols,cell,tot,sortKey,tiles,extra,pre}){const it=S.wD.items,q=S.q.toLowerCase();
@@ -1474,7 +1474,7 @@ function viewEcomNoPO(){const has=DFv().ecomsku&&DFv().ecomsku.get("all"),pc=enp
 function viewMtLow(){const pc=mtPct(),opts=[...new Set([10,20,30,40,50,60,70,80,90,100,pc])].sort((a,b)=>a-b);
   return depotReport({U:mtlData(),sel:S.rep.mtld||"",selId:"mtld",dlAct:"dlmtl",
     extra:`<label class="chk">MT sale + PO below <select id="mtlp" aria-label="MT sale plus PO below">${opts.map(v=>`<option value="${v}" ${v===pc?"selected":""}>${v}%</option>`).join("")}</select> of forecast</label>`,
-    note:`MT stock sent to a depot against the MT forecast (the depot holds stock, physical + transit), but MT MTD sale + MT open PO is below ${n0.format(pc)}% of the MT forecast (net of the direct sale forecast). Pick-up % = (MT MTD sale + MT open PO) ÷ MT forecast. CBM and MT (metric tonnes) are for the stock up to the forecast = the smaller of stock and MT forecast (forecast 200, stock 400 → 200). Figures in ${UL()}.`,
+    note:`MT stock sent to a depot against the MT forecast (the depot holds stock: physical + reserve, transit not counted), but MT MTD sale + MT open PO is below ${n0.format(pc)}% of the MT forecast (net of the direct sale forecast). Pick-up % = (MT open PO + MT MTD sale) ÷ MT forecast. CBM and MT (metric tonnes) are for the stock up to the forecast = the smaller of stock and MT forecast (forecast 200, stock 400 → 200). Figures in ${UL()}.`,
     empty:!S.meta.get("forecast")?"Upload the forecast to see this report.":"",
     cols:["MT forecast","MT sale","MT PO","Pick-up %","Stock","CBM","MT"],
     cell:r=>`<td class="n">${nq.format(r.fc)}</td><td class="n">${nq.format(r.sale)}</td><td class="n">${nq.format(r.po)}</td><td class="n behind">${n0.format(r.pct*100)}%</td><td class="n">${nq.format(r.st)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
@@ -1492,7 +1492,7 @@ function saveEcomNoPO(){const U=enpData(),pc=enpPct(),[w,d,s]=depotBook(U,[`Ecom
     ["SKUs","With no PO","Ecom PO","Stock","Excess stock","CBM","MT"],rows=>[rows.length,rows.filter(r=>!r.po).length,r2(sumR(rows,r=>r.po)),r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.ex)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]);
   save(`Ecom stock over PO ${pc}% ${stamp()}.xlsx`,[[`Stock over PO ${pc}%`,w],["Detail by depot",d],["Depot summary",s]])}
 function saveMtLow(){const U=mtlData(),pc=mtPct(),[w,d,s]=depotBook(U,["MT forecast","MT sale","MT PO","Pick-up %",`Stock (${UL()})`,"CBM"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.st),r3(r.cbm)],
-    ["MT forecast","MT MTD sale","MT open PO","Pick-up %","Stock (phy+transit)","Stock up to forecast","CBM","MT"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.st),r2(r.sf),r3(r.cbm),r3(r.mt)],
+    ["MT forecast","MT MTD sale","MT open PO","Pick-up % ((MT open PO + MT MTD sale) ÷ MT forecast)","Physical","Reserve","Stock (physical + reserve)","Stock up to forecast","CBM","MT"],r=>[r2(r.fc),r2(r.sale),r2(r.po),+(r.pct*100).toFixed(1),r2(r.phy),r2(r.rsv),r2(r.st),r2(r.sf),r3(r.cbm),r3(r.mt)],
     ["Items","MT forecast","MT sale","MT PO","Pick-up %","Stock","Stock up to forecast","CBM","MT"],rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return [rows.length,r2(f),r2(sumR(rows,r=>r.sale)),r2(sumR(rows,r=>r.po)),f?+(sp/f*100).toFixed(1):"",r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.sf)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]});
   save(`MT low pick-up below ${pc}% ${stamp()}.xlsx`,[[`MT below ${pc}%`,w],["Detail by depot",d],["Depot summary",s]])}
 /* ---------- dashboard (sales history) ---------- */
