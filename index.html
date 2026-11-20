@@ -1383,7 +1383,7 @@ function saleDay(){const m=S.meta.get("sale"),d=m?new Date(m.at):new Date();d.se
 function ecomAge(){const v=S.D.cfg.ecomAge;return v==null||v===""?6:Core.num(v)}
 function drrDays(){const o=Core.num(S.D.cfg.drrDays);if(o>0)return o;return saleDay().getDate()}
 function sfData(){return S.sfCache||(S.sfCache=Core.shortfall(S.wD,S.res,drrDays()))}
-const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT & AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
+const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT + AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
 /* report types the owner deleted are left out of the list; the owner can delete and restore them */
 const repHidden=()=>new Set(S.repHidden||[]);
 const repVisible=()=>{const h=repHidden();return RVIEWS.filter(([v])=>!h.has(v))};
@@ -1442,13 +1442,15 @@ function enpData(){const R=S.res,it=S.wD.items,L=DFv().ecomsku&&DFv().ecomsku.ge
 /* low pick-up per channel: stock is at the depot, but channel MTD sale + open PO is below x% of the channel forecast */
 const LOWCH={mtl:{ch:"mt",lab:"MT",parts:["phy","reserved"],stNote:"physical + reserve, transit not counted",stHead:"Stock (physical + reserve)"},
   gtl:{ch:"gt",lab:"GT",parts:["phy","transit","reserved"],stNote:"physical + transit + reserve",stHead:"Stock (physical + transit + reserve)"},
-  avtl:{ch:"avt",lab:"AVT",parts:["phy","transit","reserved"],stNote:"physical + transit + reserve",stHead:"Stock (physical + transit + reserve)"}};
+  avtl:{ch:"avt",lab:"AVT",parts:["phy","transit","reserved"],stNote:"physical + transit + reserve",stHead:"Stock (physical + transit + reserve)"},
+  gal:{chs:["gt","avt"],lab:"GT + AVT",parts:["phy","transit","reserved"],stNote:"physical + transit + reserve",stHead:"Stock (physical + transit + reserve)"}};
 const lowKey=v=>v==="mtl"?"mtPct":"galPct";   /* GT and AVT share one report and one % */
 const lowPct=v=>{const k=lowKey(v);if(S.rep[k]!=null)return S.rep[k];const x=S.D.cfg.mtPct;return x==null||x===""?30:Core.num(x)};
 const mtPct=()=>lowPct("mtl");
 function lowData(v){const C=LOWCH[v],R=S.res,it=S.wD.items,lim=lowPct(v)/100;
-  return R.depots.map((d,k)=>{const rows=[];for(let i=0;i<R.n;i++){const fc=chAt(d,"forecast",C.ch,i);if(!(fc>0))continue;const st=C.parts.reduce((s,p)=>s+(d[p][i]||0),0);if(!(st>0))continue;
-    const sale=chAt(d,"sale",C.ch,i),po=chAt(d,"po",C.ch,i),pct=(sale+po)/fc;if(pct<lim){const sf=Math.min(st,fc),cs=csOf(sf,i);rows.push({i,fc,sale,po,pct,st,phy:d.phy[i],tr:d.transit[i],rsv:d.reserved[i],sf,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000})}}
+  return R.depots.map((d,k)=>{const rows=[];for(let i=0;i<R.n;i++){const chs=C.chs||[C.ch],byCh={};chs.forEach(c=>byCh[c]={fc:chAt(d,"forecast",c,i),sale:chAt(d,"sale",c,i),po:chAt(d,"po",c,i)});
+    const fc=chs.reduce((s,c)=>s+byCh[c].fc,0);if(!(fc>0))continue;const st=C.parts.reduce((s,p)=>s+(d[p][i]||0),0);if(!(st>0))continue;
+    const sale=chs.reduce((s,c)=>s+byCh[c].sale,0),po=chs.reduce((s,c)=>s+byCh[c].po,0),pct=(sale+po)/fc;if(pct<lim){const sf=Math.min(st,fc),cs=csOf(sf,i);rows.push({i,fc,sale,po,pct,st,byCh,phy:d.phy[i],tr:d.transit[i],rsv:d.reserved[i],sf,cbm:cs*Core.num(it.cbm[i]),mt:cs*Core.num(it.wgt[i])/1000})}}
     return {k,name:d.name,rows,by:new Map(rows.map(r=>[r.i,r]))}})}
 const mtlData=()=>lowData("mtl");
 /* shared layout: item columns, then a group of columns per depot */
@@ -1478,14 +1480,14 @@ function viewEcomNoPO(){const has=DFv().ecomsku&&DFv().ecomsku.get("all"),pc=enp
     cell:r=>`<td class="n">${r.po?nq.format(r.po):'<span class="muted">0</span>'}</td><td class="n">${nq.format(r.st)}</td><td class="n behind">${nq.format(r.ex)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
     tot:rows=>`<td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.ex))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`,
     sortKey:r=>r.ex,tiles:rows=>`<span><b>${n0.format(rows.length)}</b> SKU-depot lines</span><span><b>${n0.format(rows.filter(r=>!r.po).length)}</b> with no PO</span><span><b>${n0.format(new Set(rows.map(r=>r.i)).size)}</b> SKUs</span><span><b>${nq.format(sumR(rows,r=>r.ex))}</b> ${UL()} excess stock</span><span><b>${n1.format(sumR(rows,r=>r.cbm))}</b> CBM</span><span><b>${n2.format(sumR(rows,r=>r.mt))}</b> MT</span>`})}
-function viewLow(v){const C=LOWCH[v],L=C.lab,pc=lowPct(v),opts=[...new Set([10,20,30,40,50,60,70,80,90,100,pc])].sort((a,b)=>a-b),ga=v!=="mtl";
+function viewLow(v){const C=LOWCH[v],L=C.lab,pc=lowPct(v),opts=[...new Set([10,20,30,40,50,60,70,80,90,100,pc])].sort((a,b)=>a-b),ga=v==="gal";
   return depotReport({U:lowData(v),sel:S.rep[v+"d"]||"",selId:v+"d",dlAct:ga?"dlgal":"dl"+v,
-    extra:(ga?`<label class="chk">Channel <select id="galc" aria-label="Channel"><option value="gtl" ${v==="gtl"?"selected":""}>GT</option><option value="avtl" ${v==="avtl"?"selected":""}>AVT</option></select></label>`:"")+`<label class="chk">${L} sale + PO below <select id="${v}p" aria-label="${L} sale plus PO below">${opts.map(x=>`<option value="${x}" ${x===pc?"selected":""}>${x}%</option>`).join("")}</select> of forecast</label>`,
-    note:`${L} stock sent to a depot against the ${L} forecast (the depot holds stock: ${C.stNote}), but ${L} MTD sale + ${L} open PO is below ${n0.format(pc)}% of the ${L} forecast (net of the direct sale forecast). Pick-up % = (${L} open PO + ${L} MTD sale) ÷ ${L} forecast${L==="MT"?"":` (no ${L} open PO is uploaded, so it counts as 0)`}. CBM and MT (metric tonnes) are for the stock up to the forecast = the smaller of stock and ${L} forecast (forecast 200, stock 400 → 200). Figures in ${UL()}.`,
+    extra:`<label class="chk">${L} sale + PO below <select id="${v}p" aria-label="${L} sale plus PO below">${opts.map(x=>`<option value="${x}" ${x===pc?"selected":""}>${x}%</option>`).join("")}</select> of forecast</label>`,
+    note:`${L} stock sent to a depot against the ${L} forecast (the depot holds stock: ${C.stNote}), but ${L} MTD sale + ${L} open PO is below ${n0.format(pc)}% of the ${L} forecast (net of the direct sale forecast). Pick-up % = (${L} open PO + ${L} MTD sale) ÷ ${L} forecast${ga?" (GT and AVT forecast, sale and open PO are added together; no GT or AVT open PO is uploaded, so it counts as 0)":""}. CBM and MT (metric tonnes) are for the stock up to the forecast = the smaller of stock and ${L} forecast (forecast 200, stock 400 → 200). Figures in ${UL()}.`,
     empty:!S.meta.get("forecast")?"Upload the forecast to see this report.":"",
-    cols:[`${L} forecast`,`${L} sale`,`${L} PO`,"Pick-up %","Stock","CBM","MT"],
-    cell:r=>`<td class="n">${nq.format(r.fc)}</td><td class="n">${nq.format(r.sale)}</td><td class="n">${nq.format(r.po)}</td><td class="n behind">${n0.format(r.pct*100)}%</td><td class="n">${nq.format(r.st)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
-    tot:rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return `<td class="n"><b>${nq.format(f)}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.sale))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${f?n0.format(sp/f*100)+"%":"–"}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`},
+    cols:[...(ga?["GT forecast","AVT forecast"]:[]),`${L} forecast`,`${L} sale`,`${L} PO`,"Pick-up %","Stock","CBM","MT"],
+    cell:r=>(ga?`<td class="n">${nq.format(r.byCh.gt.fc)}</td><td class="n">${nq.format(r.byCh.avt.fc)}</td>`:"")+`<td class="n">${nq.format(r.fc)}</td><td class="n">${nq.format(r.sale)}</td><td class="n">${nq.format(r.po)}</td><td class="n behind">${n0.format(r.pct*100)}%</td><td class="n">${nq.format(r.st)}</td><td class="n">${n2.format(r.cbm)}</td><td class="n">${n2.format(r.mt)}</td>`,
+    tot:rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return (ga?`<td class="n"><b>${nq.format(sumR(rows,r=>r.byCh.gt.fc))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.byCh.avt.fc))}</b></td>`:"")+`<td class="n"><b>${nq.format(f)}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.sale))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${f?n0.format(sp/f*100)+"%":"–"}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`},
     sortKey:r=>r.sf,tiles:rows=>`<span><b>${n0.format(rows.length)}</b> item-depot lines</span><span><b>${n0.format(new Set(rows.map(r=>r.i)).size)}</b> items</span><span><b>${nq.format(sumR(rows,r=>r.sf))}</b> ${UL()} stock up to forecast</span><span><b>${n1.format(sumR(rows,r=>r.cbm))}</b> CBM</span><span><b>${n2.format(sumR(rows,r=>r.mt))}</b> MT</span>`})}
 const viewMtLow=()=>viewLow("mtl");
 function depotBook(U,cols,vals,detHead,detRow,sumHead,sumRow){const it=S.wD.items,items=new Set();U.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
@@ -1507,16 +1509,14 @@ function saveLow(v,only){const C=LOWCH[v],L=C.lab,U=lowData(v),pc=lowPct(v),hasT
   save(`${L} low pick-up below ${pc}% ${stamp()}.xlsx`,[[`${L} below ${pc}%`,w],["Detail by depot",d],["Depot summary",s]])}
 const saveMtLow=()=>saveLow("mtl");
 /* GT & AVT in one file: a sheet pair for each channel, one summary for both */
-function saveGA(){const pc=lowPct("gtl"),G=saveLow("gtl",true),A=saveLow("avtl",true),it=S.wD.items;
-  const items=rows=>new Set(rows.map(r=>r.i)).size,blk=rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return [items(rows),r2(f),r2(sumR(rows,r=>r.sale)),f?+(sp/f*100).toFixed(1):"",r2(sumR(rows,r=>r.sf)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]};
-  /* both channels draw on the same depot stock: the total counts each item's stock once, up to GT + AVT forecast */
-  const comb=(gr,ar)=>{const m=new Map();[...gr,...ar].forEach(r=>{const x=m.get(r.i)||{st:r.st,fc:0};x.fc+=r.fc;m.set(r.i,x)});let sf=0,cbm=0,mt=0,st=0;
-    m.forEach((x,i)=>{const s=Math.min(x.st,x.fc),cs=csOf(s,i);st+=x.st;sf+=s;cbm+=cs*Core.num(it.cbm[i]);mt+=cs*Core.num(it.wgt[i])/1000});return [m.size,r2(st),r2(sf),r3(cbm),r3(mt)]};
-  const hd=c=>[`${c} items`,`${c} forecast`,`${c} sale`,`${c} pick-up %`,`${c} stock up to forecast`,`${c} CBM`,`${c} MT`];
-  const sum=[["Depot",...hd("GT"),...hd("AVT"),"Total items (GT or AVT)","Stock (physical + transit + reserve)","Total stock up to GT + AVT forecast","Total CBM","Total MT"]],tot=[[],[]];let T=[0,0,0,0,0];
-  G.U.forEach((g,k)=>{const a=A.U[k];if(!g.rows.length&&!a.rows.length)return;tot[0].push(...g.rows);tot[1].push(...a.rows);const c=comb(g.rows,a.rows);T=T.map((v,j)=>v+c[j]);sum.push([g.name,...blk(g.rows),...blk(a.rows),...c])});
-  sum.push(["Total",...blk(tot[0]),...blk(tot[1]),items([...tot[0],...tot[1]]),r2(T[1]),r2(T[2]),r3(T[3]),r3(T[4])]);
-  save(`GT & AVT low pick-up below ${pc}% ${stamp()}.xlsx`,[[`GT below ${pc}%`,G.d],[`AVT below ${pc}%`,A.d],["Summary GT+AVT",sum]])}
+function saveGA(){const v="gal",pc=lowPct(v),U=lowData(v),it=S.wD.items;
+  const chRow=c=>r=>{const x=r.byCh[c];return [r2(x.fc),r2(x.sale),r2(x.po),x.fc?+((x.sale+x.po)/x.fc*100).toFixed(1):"",r2(r.phy),r2(r.tr),r2(r.rsv),r2(r.st)]};
+  const chHead=c=>[`${c} forecast`,`${c} MTD sale`,`${c} open PO`,`${c} pick-up %`,"Physical","Transit","Reserve","Stock (physical + transit + reserve)"];
+  const gt=depotBook(U,[],()=>[],chHead("GT"),chRow("gt"),[],()=>[])[1],avt=depotBook(U,[],()=>[],chHead("AVT"),chRow("avt"),[],()=>[])[1];
+  const blk=rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return [new Set(rows.map(r=>r.i)).size,r2(sumR(rows,r=>r.byCh.gt.fc)),r2(sumR(rows,r=>r.byCh.avt.fc)),r2(f),r2(sumR(rows,r=>r.byCh.gt.sale)),r2(sumR(rows,r=>r.byCh.avt.sale)),r2(sumR(rows,r=>r.sale)),r2(sumR(rows,r=>r.po)),f?+(sp/f*100).toFixed(1):"",r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.sf)),r3(sumR(rows,r=>r.cbm)),r3(sumR(rows,r=>r.mt))]};
+  const sum=[["Depot","Items","GT forecast","AVT forecast","GT + AVT forecast","GT MTD sale","AVT MTD sale","GT + AVT MTD sale","Open PO","GT + AVT pick-up %","Stock (physical + transit + reserve)","Stock up to GT + AVT forecast","CBM","MT"]],all=[];
+  U.forEach(u=>{if(!u.rows.length)return;all.push(...u.rows);sum.push([u.name,...blk(u.rows)])});sum.push(["Total",...blk(all)]);
+  save(`GT + AVT low pick-up below ${pc}% ${stamp()}.xlsx`,[["GT",gt],["AVT",avt],["Summary GT+AVT",sum]])}
 /* ---------- dashboard (sales history) ---------- */
 /* sales history is loaded only when the Dashboard (or its upload) is opened, to keep page loads light */
 function ensureHist(){if(S.histOn||S.sess.state!=="ready")return;S.histOn=true;
@@ -2033,7 +2033,7 @@ function viewReports(){
   if(S.rep.view==="unb")return viewUnbilled();
   if(S.rep.view==="enp")return viewEcomNoPO();
   if(S.rep.view==="mtl")return viewLow("mtl");
-  if(S.rep.view==="gal")return viewLow(S.rep.galc==="avtl"?"avtl":"gtl");
+  if(S.rep.view==="gal")return viewLow("gal");
   if(S.rep.view==="oc")return viewOC();
   if(S.rep.view==="fa")return viewFA();
   const F=S.fvsCache||(S.fvsCache=Core.fvs(R)),it=S.wD.items,rp=S.rep,gone=monthGone(),hasSale=!!S.meta.get("sale");
@@ -2077,7 +2077,7 @@ function viewHistory(){
 }
 const KLABEL=k=>k==="send"?"Report sent":(Core.KINDS[k]||{label:k}).label;
 const sendHidden=k=>{const h=repHidden();return k==="fvs"?(h.has("sum")&&h.has("item")):h.has(k)};
-const REPORTS=[["orders","Depot orders, all depots"],["order1","Order for one depot"],["master","Master file"],["forecast","Forecast"],["fvs","Forecast vs sale %"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT & AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["dash","Dashboard (sales history)"]];
+const REPORTS=[["orders","Depot orders, all depots"],["order1","Order for one depot"],["master","Master file"],["forecast","Forecast"],["fvs","Forecast vs sale %"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT + AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["dash","Dashboard (sales history)"]];
 function sendSummary(){const R=S.res,cases=R.depots.reduce((a,l)=>a+l.cases,0),cbm=R.depots.reduce((a,l)=>a+l.cbm,0),short=R.fg?R.fg.filter(x=>x.bal<0).length:null,sn=S.snd;
   if(sendHidden(sn.rep)){const f=REPORTS.find(r=>!sendHidden(r[0]));if(f)sn.rep=f[0]}
   const label=(REPORTS.find(r=>r[0]===sn.rep)||["",""])[1]+(sn.rep==="order1"?": "+(R.depots.find(d=>d.id===sn.dep)||R.depots[0]).name:"");
