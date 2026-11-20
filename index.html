@@ -1516,7 +1516,7 @@ function saveGA(){const pc=lowPct("gtl"),G=saveLow("gtl",true),A=saveLow("avtl",
   const sum=[["Depot",...hd("GT"),...hd("AVT"),"Total items (GT or AVT)","Stock (physical + transit + reserve)","Total stock up to GT + AVT forecast","Total CBM","Total MT"]],tot=[[],[]];let T=[0,0,0,0,0];
   G.U.forEach((g,k)=>{const a=A.U[k];if(!g.rows.length&&!a.rows.length)return;tot[0].push(...g.rows);tot[1].push(...a.rows);const c=comb(g.rows,a.rows);T=T.map((v,j)=>v+c[j]);sum.push([g.name,...blk(g.rows),...blk(a.rows),...c])});
   sum.push(["Total",...blk(tot[0]),...blk(tot[1]),items([...tot[0],...tot[1]]),r2(T[1]),r2(T[2]),r3(T[3]),r3(T[4])]);
-  save(`GT & AVT low pick-up below ${pc}% ${stamp()}.xlsx`,[["Summary",sum],[`GT below ${pc}%`,G.w],["GT detail by depot",G.d],[`AVT below ${pc}%`,A.w],["AVT detail by depot",A.d]])}
+  save(`GT & AVT low pick-up below ${pc}% ${stamp()}.xlsx`,[[`GT below ${pc}%`,G.d],[`AVT below ${pc}%`,A.d],["Summary GT+AVT",sum]])}
 /* ---------- dashboard (sales history) ---------- */
 /* sales history is loaded only when the Dashboard (or its upload) is opened, to keep page loads light */
 function ensureHist(){if(S.histOn||S.sess.state!=="ready")return;S.histOn=true;
