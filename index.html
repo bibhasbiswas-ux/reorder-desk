@@ -305,7 +305,8 @@ const Core=(()=>{
       let field=cc>=0&&String(row[cc]??"").trim()?chFor(row[cc]):fixed;if(!field)continue;
       if(byDate){const d=isoDate(row[dtc]);if(!d)byDate.noDate++;field=d||"nodate"}
       A.add(code,dep,field,num(row[qc]));rows++;
-      if(dated&&dtc>=0&&key(field)==="ecom"){const d=isoDate(row[dtc]);dated.add(code,dep,d||"nodate",num(row[qc]));if(!d)dated.noDate++}}
+      if(dated&&dtc>=0&&key(field)==="ecom"){const d=isoDate(row[dtc]);dated.add(code,dep,d||"nodate",num(row[qc]));if(!d)dated.noDate++}
+      else if(dated&&dtc>=0&&key(field)==="mt"){const d=isoDate(row[dtc]);dated.add(code,"mt_"+dep,d||"nodate",num(row[qc]));if(!d)dated.noDateMt=(dated.noDateMt||0)+1;dated.hasMt=true}}  /* MT PO dates are kept apart (depot id with mt_ in front) */
     if(dated&&dtc>=0&&rows)dated.hasDate=true;
     return rows}
   /* ---------- sale loss files: location names are kept as written in the files ---------- */
@@ -424,7 +425,7 @@ let long=false,hasHead=false;
       out.depots.forEach(d=>{const v=STOCKF.map(f=>{const j=d.fields.indexOf(f);return j<0?out.codes.map(()=>0):d.v[j]});d.fields=STOCKF.slice();d.v=v})}
     if(long)cfg.depots.forEach(d=>{if(!out.depots.has(d.id))out.depots.set(d.id,{fields:[],v:[]})});
     let podate=null;if(dated&&dated.hasDate){podate=dated.done();cfg.depots.forEach(d=>{if(!podate.depots.has(d.id))podate.depots.set(d.id,{fields:[],v:[]})});
-      const ds=new Set();podate.depots.forEach(d=>d.fields.forEach(f=>{if(f!=="nodate")ds.add(f)}));podate.range=[...ds].sort();podate.noDate=dated.noDate}
+      const ds=new Set(),dm=new Set();podate.depots.forEach((d,id)=>d.fields.forEach(f=>{if(f!=="nodate")(String(id).startsWith("mt_")?dm:ds).add(f)}));podate.range=[...ds].sort();podate.mtRange=[...dm].sort();podate.noDate=dated.noDate;podate.noDateMt=dated.noDateMt||0;podate.hasMt=!!dated.hasMt}
     else if(kind==="po")warn.push("The Ecom sheet has no PO Date column, so the safety stock report counts all Ecom open POs, whatever their age.");
     return {kind,...out,replaceAll:long,fg:fg.size?out.codes.map(c=>fg.get(c)||0):null,unknown,badDepots:[...bad],warn,sheets:used,podate};
   }
@@ -606,7 +607,7 @@ let long=false,hasHead=false;
     if(kind==="ecomplan")return [["Ecom direct plan",[["Item Code","Item Name","Depot","Plan Qty (Pcs)"]]],lists([])];
     if(kind==="dispatch")return [["Dispatch",[["Dispatch Date","Item Code","Item Name","Location","Qty (Cartons)"]]],lists([])];
     if(kind==="sale")return [["MTD sale",[["Item Code","Item Name","Sale Channel","Depot","Sale Qty"]]],lists([["Sale Channel",cfg.saleCh]])];
-    return [...cfg.poCh.map(ch=>[ch.slice(0,28),[key(ch)==="ecom"?["Item Code","Item Name","Depot","PO Qty","PO Date"]:["Item Code","Item Name","Depot","PO Qty"]]]),lists([])];
+    return [...cfg.poCh.map(ch=>[ch.slice(0,28),[key(ch)==="ecom"||key(ch)==="mt"?["Item Code","Item Name","Depot","PO Qty","PO Date"]:["Item Code","Item Name","Depot","PO Qty"]]]),lists([])];
   }
   /* Large uploads are stored as parts of PART rows each: "id", "id~1", "id~2"... all stamped with one upload id. */
   const PART=1000,PART_BYTES=150000;
@@ -786,7 +787,7 @@ items:"Item number, Item name, Brand, Item Type, Final Code, Final Item Name, BO
   direct:"Same layout as the forecast. The part of the forecast planned as direct sale from the plant. It is taken off the forecast, channel by channel, before orders and reports are worked out.",
   stock:"Three sheets: Phy, Transit and Reserve. Each has item code and name, then a column per depot. Plant FG goes on the Phy sheet. Upload every day.",
   sale:"One row per item, channel and depot: Item Code, Item Name, Sale Channel, Depot, Sale Qty. Sales so far this month. Upload every day.",
-  po:"Two sheets: Ecom and MT. One row per item and depot: Item Code, Item Name, Depot, PO Qty. The Ecom sheet also has PO Date. Upload every day.",
+  po:"Two sheets: Ecom and MT. One row per PO line: Item Code, Item Name, Depot, PO Qty, PO Date (both sheets). Upload every day.",
   factory:"One row per item: Item Code, Item Name, Brand, Category, Sub-Category, Size, Case Wgt, CBM, Case Lot, then a column per depot with the order qty in cartons. You set the order date when you upload. Upload again when you place a new factory order.",
   dispatch:"One row per dispatch: Dispatch Date, Item Code, Item Name, Location, Qty in cartons. Only dispatches dated on or after the factory order date are taken off the order. Upload every day.",
   fg:"One row per item: Item Code and FG Qty in cases, the finished goods at the factory. The factory balance order is taken off it first; what is left is fresh stock for the safety stock shortfall. Upload every day.",
@@ -949,7 +950,9 @@ function summary(p){if(p.kind==="dstock"||p.kind==="fstock"||p.kind==="pstock"||
     if(p.badDepots&&p.badDepots.length)out.push(`<p class="notice">Rows skipped because the depot name is not in Settings: ${p.badDepots.slice(0,8).map(esc).join(", ")}${p.badDepots.length>8?" and more":""}.</p>`);
     if(p.unknown.length)out.push(`<p class="notice">${p.unknown.length} column${p.unknown.length>1?"s":""} not recognised and ignored: ${p.unknown.slice(0,8).map(esc).join(", ")}${p.unknown.length>8?" and more":""}. Check the depot name matches Settings.</p>`);
     p.warn.forEach(w=>out.push(`<p class="notice">${esc(w)}</p>`));
-    if(p.kind==="po"&&p.podate){const r=p.podate.range,ag=ecomAge();out.push(`<p class="muted">Ecom PO dates ${r.length?`from ${esc(r[0])} to ${esc(r[r.length-1])}`:"not read"}. The safety stock report counts Ecom POs older than ${ag} days.${p.podate.noDate?` ${n0.format(p.podate.noDate)} Ecom rows have no readable PO Date and are counted as older.`:""}</p>`)}
+    if(p.kind==="po"&&p.podate){const r=p.podate.range,ag=ecomAge();out.push(`<p class="muted">Ecom PO dates ${r.length?`from ${esc(r[0])} to ${esc(r[r.length-1])}`:"not read"}. The safety stock report counts Ecom POs older than ${ag} days.${p.podate.noDate?` ${n0.format(p.podate.noDate)} Ecom rows have no readable PO Date and are counted as older.`:""}</p>`);
+      if(p.podate.hasMt){const m=p.podate.mtRange;out.push(`<p class="muted">MT PO dates ${m.length?`from ${esc(m[0])} to ${esc(m[m.length-1])}`:"not read"}.${p.podate.noDateMt?` ${n0.format(p.podate.noDateMt)} MT rows have no readable PO Date.`:""}</p>`)}
+      else out.push(`<p class="muted">The MT sheet has no PO Date column, so MT PO dates are not kept.</p>`)}
     if(p.kind==="sale"){const ok=new Set(cfg.saleCh.map(Core.key)),odd=[...fields].filter(f=>!ok.has(Core.key(f)));
       if(odd.length)out.push(`<p class="notice">Sale channel${odd.length>1?"s":""} not in Settings: ${odd.map(esc).join(", ")}. ${odd.length>1?"They are":"It is"} kept for reports but left out of the DRR in the safety stock report. Add ${odd.length>1?"them":"it"} under Settings if ${odd.length>1?"they":"it"} should count.</p>`)}
     if(S.D.items){const have=knownCodes(),extra=p.codes.filter(c=>!have.has(String(c))).length;
@@ -1100,9 +1103,10 @@ function saveLast(k){const D=S.D,cfg=D.cfg,it=D.items,m=S.meta.get(k),pos=new Ma
     sheets=[["MT loss",[["Location","I. Code","Product name",...ds.map(dmy)],...[...by.values()].map(a=>[a.loc,a.c,nm(a.c)||fnm(a.c),...a.v.map(r4)])]]]}
   else if(k==="sale")sheets=[["MTD sale",long(D.sale,["Item Code","Item Name","Sale Channel","Depot","Sale Qty"],(c,dep,f,q)=>[c,nm(c),f,dep.name,r4(q)])]];
   else if(k==="po"){const pd=D.podate&&D.podate.size&&!D.podate.has("_none")?D.podate:null,byCh=new Map();
-    docs(D.po).forEach(([dep,d])=>d.fields.forEach((f,c)=>{const x=Core.key(f);if(x==="ecom"&&pd)return;if(!byCh.has(x))byCh.set(x,{name:f,rows:[]});d.codes.forEach((code,j)=>{const q=val(d,c,j);if(q)byCh.get(x).rows.push([String(code),nm(code),dep.name,r4(q)])})}));
+    docs(D.po).forEach(([dep,d])=>d.fields.forEach((f,c)=>{const x=Core.key(f);if(x==="ecom"&&pd)return;if(x==="mt"&&pd&&[...pd.keys()].some(k=>String(k).startsWith("mt_")))return;if(!byCh.has(x))byCh.set(x,{name:f,rows:[]});d.codes.forEach((code,j)=>{const q=val(d,c,j);if(q)byCh.get(x).rows.push([String(code),nm(code),dep.name,r4(q)])})}));
     sheets=[];cfg.poCh.forEach(ch=>{const x=Core.key(ch);if(x==="ecom"){let rows;if(pd){rows=[];docs(pd).forEach(([dep,d])=>d.fields.forEach((f,c)=>d.codes.forEach((code,j)=>{const q=val(d,c,j);if(q)rows.push([String(code),nm(code),dep.name,r4(q),f==="nodate"?"":dmy(f)])})))}
         else rows=(byCh.get(x)||{rows:[]}).rows.map(r=>[...r,""]);sheets.push([ch.slice(0,28),[["Item Code","Item Name","Depot","PO Qty","PO Date"],...rows]])}
+      else if(x==="mt"&&pd&&[...pd.keys()].some(k=>String(k).startsWith("mt_"))){const rows=[];cfg.depots.forEach(dp=>{const d=pd.get("mt_"+dp.id);if(!d||!Array.isArray(d.codes)||!d.fields)return;d.fields.forEach((f,c)=>d.codes.forEach((code,j)=>{const q=val(d,c,j);if(q)rows.push([String(code),nm(code),dp.name,r4(q),f==="nodate"?"":dmy(f)])}))});sheets.push([ch.slice(0,28),[["Item Code","Item Name","Depot","PO Qty","PO Date"],...rows]])}
       else sheets.push([ch.slice(0,28),[["Item Code","Item Name","Depot","PO Qty"],...((byCh.get(x)||{rows:[]}).rows)]]);byCh.delete(x)});
     byCh.forEach(v=>sheets.push([String(v.name).slice(0,28),[["Item Code","Item Name","Depot","PO Qty"],...v.rows]]))}
   else if(k==="factory"){const attrs={head:["Brand","Category","Sub-Category","Case Wgt","CBM","Case Lot"],row:c=>{const i=pos.get(String(c));return i==null?["","","","","",""]:[it.brand[i],it.cat[i],it.sub[i],it.wgt[i],it.cbm[i],it.csLot[i]]}};
