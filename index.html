@@ -1514,11 +1514,11 @@ function pogData(){const R=S.res,D=S.wD,it=D.items,pd=D.podate&&D.podate.size&&!
     const rows=[];per.forEach((L,i)=>{const st=Math.max(0,(d.phy[i]||0)+(d.transit[i]||0));
       /* stock fills MT first, then Ecom; inside each, the oldest PO first (undated counted as oldest) */
       L.sort((a,b)=>(a.ch===b.ch?0:a.ch==="MT"?-1:1)||((a.date||"")<(b.date||"")?-1:(a.date||"")>(b.date||"")?1:0));
-      let left=st;const b=new Array(PGB.length).fill(0);let nd=0,po=0,gap=0,mtGap=0,ecGap=0;
-      L.forEach(l=>{po+=l.q;const fill=Math.min(left,l.q);left-=fill;const g=l.q-fill;const age=l.date?today-pgDay(l.date):null;
+      let left=st;const b=new Array(PGB.length).fill(0),bc={MT:new Array(PGB.length).fill(0),Ecom:new Array(PGB.length).fill(0)},ndc={MT:0,Ecom:0},poc={MT:0,Ecom:0};let nd=0,po=0,gap=0,mtGap=0,ecGap=0;
+      L.forEach(l=>{po+=l.q;poc[l.ch]+=l.q;const fill=Math.min(left,l.q);left-=fill;const g=l.q-fill;const age=l.date?today-pgDay(l.date):null;
         lines.push({k,dep:d.name,i,ch:l.ch,date:l.date,age,q:l.q,fill,g});if(!(g>0))return;gap+=g;if(l.ch==="MT")mtGap+=g;else ecGap+=g;
-        if(age==null){nd+=g;nodate=true}else b[PGB.findIndex(x=>age<=x[1])]+=g});
-      if(gap>0)rows.push({i,st,po,gap,b,nd,mtGap,ecGap})});
+        if(age==null){nd+=g;ndc[l.ch]+=g;nodate=true}else{const j=PGB.findIndex(x=>age<=x[1]);b[j]+=g;bc[l.ch][j]+=g}});
+      if(gap>0)rows.push({i,st,po,gap,b,nd,mtGap,ecGap,bc,ndc,poc})});
     return {k,name:d.name,rows,by:new Map(rows.map(r=>[r.i,r]))}});
   return {U,lines,nodate}}
 function viewPoGap(){const P=pogData(),nd=P.nodate,cols=["Stock","Open PO","Gap",...PGB.map(x=>x[0]),...(nd?["No PO date"]:[])];
@@ -1533,8 +1533,11 @@ function savePoGap(){const P=pogData(),nd=P.nodate,it=S.wD.items,bh=[...PGB.map(
   const [w,d,s]=depotBook(P.U,bh,bv,
     [`Stock (physical + transit)`,"Open PO (MT + Ecom)","PO gap","MT gap","Ecom gap",...bh],r=>[r2(r.st),r2(r.po),r2(r.gap),r2(r.mtGap),r2(r.ecGap),...bv(r)],
     ["Items","Stock","Open PO","PO gap","MT gap","Ecom gap",...bh],rows=>[new Set(rows.map(r=>r.i)).size,r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.po)),r2(sumR(rows,r=>r.gap)),r2(sumR(rows,r=>r.mtGap)),r2(sumR(rows,r=>r.ecGap)),...bh.map((_,j)=>r2(sumR(rows,r=>j<PGB.length?r.b[j]:r.nd)))]);
+  /* one sheet per channel: that channel's PO gap by age, for every location */
+  const chWide=ch=>{const g=ch==="MT"?"mtGap":"ecGap",Uc=P.U.map(u=>{const rows=u.rows.filter(r=>r[g]>0);return {...u,rows,by:new Map(rows.map(r=>[r.i,r]))}});
+    return depotBook(Uc,[`${ch} open PO`,`${ch} gap`,...bh],r=>[r2(r.poc[ch]),r2(r[g]),...[...r.bc[ch],...(nd?[r.ndc[ch]]:[])].map(r2)],[],()=>[],[],()=>[])[0]};
   const pl=[["Depot","Item Code","Item Name","Channel","PO Date","PO age (days)","Age bucket","PO qty","Covered by stock","PO gap"],...P.lines.filter(l=>l.q>0).map(l=>[l.dep,it.code[l.i],it.name[l.i],l.ch,l.date?dmy(l.date):"No date",l.age==null?"No date":l.age,l.age==null?"No PO date":PGB.find(x=>l.age<=x[1])[0],r2(l.q),r2(l.fill),r2(l.g)])];
-  const ST={subtotal:true};save(`PO age gap ${stamp()}.xlsx`,[["PO gap by location",w,null,ST],["Detail by depot",d,null,ST],["Depot summary",s,null,ST],["PO lines",pl,null,ST]])}
+  const ST={subtotal:true};save(`PO age gap ${stamp()}.xlsx`,[["MT PO gap by location",chWide("MT"),null,ST],["Ecom PO gap by location",chWide("Ecom"),null,ST],["Detail by depot",d,null,ST],["Depot summary",s,null,ST],["PO lines",pl,null,ST]])}
 
 function depotBook(U,cols,vals,detHead,detRow,sumHead,sumRow){const it=S.wD.items,items=new Set();U.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
   const list=[...items].sort((a,b)=>String(it.code[a]).localeCompare(String(it.code[b]),undefined,{numeric:true}));
