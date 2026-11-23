@@ -1387,7 +1387,7 @@ function saleDay(){const m=S.meta.get("sale"),d=m?new Date(m.at):new Date();d.se
 function ecomAge(){const v=S.D.cfg.ecomAge;return v==null||v===""?6:Core.num(v)}
 function drrDays(){const o=Core.num(S.D.cfg.drrDays);if(o>0)return o;return saleDay().getDate()}
 function sfData(){return S.sfCache||(S.sfCache=Core.shortfall(S.wD,S.res,drrDays()))}
-const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT + AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"]];
+const RVIEWS=[["sum","Depot by channel"],["item","By item"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT + AVT low pick-up"],["pogap","PO age gap"],["oc","Over consumption"],["fa","Forecast accuracy"]];
 /* report types the owner deleted are left out of the list; the owner can delete and restore them */
 const repHidden=()=>new Set(S.repHidden||[]);
 const repVisible=()=>{const h=repHidden();return RVIEWS.filter(([v])=>!h.has(v))};
@@ -1494,6 +1494,41 @@ function viewLow(v){const C=LOWCH[v],L=C.lab,pc=lowPct(v),opts=[...new Set([10,2
     tot:rows=>{const f=sumR(rows,r=>r.fc),sp=sumR(rows,r=>r.sale+r.po);return (ga?`<td class="n"><b>${nq.format(sumR(rows,r=>r.byCh.gt.fc))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.byCh.avt.fc))}</b></td>`:"")+`<td class="n"><b>${nq.format(f)}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.sale))}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.po))}</b></td><td class="n"><b>${f?n0.format(sp/f*100)+"%":"–"}</b></td><td class="n"><b>${nq.format(sumR(rows,r=>r.st))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.cbm))}</b></td><td class="n"><b>${n2.format(sumR(rows,r=>r.mt))}</b></td>`},
     sortKey:r=>r.sf,tiles:rows=>`<span><b>${n0.format(rows.length)}</b> item-depot lines</span><span><b>${n0.format(new Set(rows.map(r=>r.i)).size)}</b> items</span><span><b>${nq.format(sumR(rows,r=>r.sf))}</b> ${UL()} stock up to forecast</span><span><b>${n1.format(sumR(rows,r=>r.cbm))}</b> CBM</span><span><b>${n2.format(sumR(rows,r=>r.mt))}</b> MT</span>`})}
 const viewMtLow=()=>viewLow("mtl");
+/* ---------- PO age gap: open PO (MT + Ecom) not covered by depot stock (physical + transit), by PO age ---------- */
+const PGB=[["1–3 days",3],["4–7 days",7],["8–15 days",15],["16–30 days",30],["31–60 days",60],["60+ days",Infinity]];
+const pgDay=s=>Math.floor(Date.parse(s+"T00:00:00Z")/86400000);
+function pogData(){const R=S.res,D=S.wD,it=D.items,pd=D.podate&&D.podate.size&&!D.podate.has("_none")?D.podate:null,today=pgDay(todayIso()),pos=new Map(it.code.map((c,i)=>[String(c),i]));
+  const lines=[];let nodate=false;
+  const U=R.depots.map((d,k)=>{const dep=S.D.cfg.depots[k]||{id:""},per=new Map(),addL=(i,ch,date,q)=>{if(!(q>0))return;let a=per.get(i);if(!a)per.set(i,a=[]);a.push({ch,date,q})};
+    /* PO lines with their dates; a channel without dates is one undated line from the open PO */
+    const fromDoc=(doc,ch)=>{if(!doc||!Array.isArray(doc.codes)||!doc.fields)return false;doc.fields.forEach((f,c)=>doc.codes.forEach((code,j)=>{const i=pos.get(String(code));if(i!=null)addL(i,ch,f==="nodate"?null:f,Core.at(doc,c,j))}));return true};
+    const hasMt=pd&&fromDoc(pd.get("mt_"+dep.id),"MT"),hasEc=pd&&fromDoc(pd.get(dep.id),"Ecom");
+    for(let i=0;i<R.n;i++){if(!hasMt)addL(i,"MT",null,chAt(d,"po","mt",i));if(!hasEc)addL(i,"Ecom",null,chAt(d,"po","ecom",i))}
+    const rows=[];per.forEach((L,i)=>{const st=Math.max(0,(d.phy[i]||0)+(d.transit[i]||0));
+      /* stock fills MT first, then Ecom; inside each, the oldest PO first (undated counted as oldest) */
+      L.sort((a,b)=>(a.ch===b.ch?0:a.ch==="MT"?-1:1)||((a.date||"")<(b.date||"")?-1:(a.date||"")>(b.date||"")?1:0));
+      let left=st;const b=new Array(PGB.length).fill(0);let nd=0,po=0,gap=0,mtGap=0,ecGap=0;
+      L.forEach(l=>{po+=l.q;const fill=Math.min(left,l.q);left-=fill;const g=l.q-fill;const age=l.date?today-pgDay(l.date):null;
+        lines.push({k,dep:d.name,i,ch:l.ch,date:l.date,age,q:l.q,fill,g});if(!(g>0))return;gap+=g;if(l.ch==="MT")mtGap+=g;else ecGap+=g;
+        if(age==null){nd+=g;nodate=true}else b[PGB.findIndex(x=>age<=x[1])]+=g});
+      if(gap>0)rows.push({i,st,po,gap,b,nd,mtGap,ecGap})});
+    return {k,name:d.name,rows,by:new Map(rows.map(r=>[r.i,r]))}});
+  return {U,lines,nodate}}
+function viewPoGap(){const P=pogData(),nd=P.nodate,cols=["Stock","Open PO","Gap",...PGB.map(x=>x[0]),...(nd?["No PO date"]:[])];
+  const vals=r=>[r.st,r.po,r.gap,...r.b,...(nd?[r.nd]:[])];
+  return depotReport({U:P.U,sel:S.rep.pgd||"",selId:"pgd",dlAct:"dlpog",
+    note:`Open PO (MT + Ecom) that depot stock (physical + transit) does not cover, by PO age (today − PO Date). Stock fills MT POs first, then Ecom; within each, the oldest PO first, so the gap sits on the newest POs. Example: 300 open, stock 120 → gap 180. ${nd?"POs without a PO Date are counted as the oldest and shown under “No PO date”. ":""}Figures in ${UL()}.`,
+    empty:!S.meta.get("po")?"Upload the open PO to see this report.":"",cols,
+    cell:r=>vals(r).map((v,j)=>`<td class="n${j===2?" behind":""}">${v?nq.format(v):'<span class="muted">–</span>'}</td>`).join(""),
+    tot:rows=>cols.map((_,j)=>`<td class="n"><b>${nq.format(sumR(rows,r=>vals(r)[j]))}</b></td>`).join(""),
+    sortKey:r=>r.gap,tiles:rows=>`<span><b>${n0.format(rows.length)}</b> item-depot lines</span><span><b>${n0.format(new Set(rows.map(r=>r.i)).size)}</b> items</span><span><b>${nq.format(sumR(rows,r=>r.gap))}</b> ${UL()} PO gap</span><span><b>${nq.format(sumR(rows,r=>r.mtGap))}</b> MT</span><span><b>${nq.format(sumR(rows,r=>r.ecGap))}</b> Ecom</span><span><b>${nq.format(sumR(rows,r=>r.b[4]+r.b[5]))}</b> over 30 days</span>`})}
+function savePoGap(){const P=pogData(),nd=P.nodate,it=S.wD.items,bh=[...PGB.map(x=>x[0]),...(nd?["No PO date"]:[])],bv=r=>[...r.b,...(nd?[r.nd]:[])].map(r2);
+  const [w,d,s]=depotBook(P.U,bh,bv,
+    [`Stock (physical + transit)`,"Open PO (MT + Ecom)","PO gap","MT gap","Ecom gap",...bh],r=>[r2(r.st),r2(r.po),r2(r.gap),r2(r.mtGap),r2(r.ecGap),...bv(r)],
+    ["Items","Stock","Open PO","PO gap","MT gap","Ecom gap",...bh],rows=>[new Set(rows.map(r=>r.i)).size,r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.po)),r2(sumR(rows,r=>r.gap)),r2(sumR(rows,r=>r.mtGap)),r2(sumR(rows,r=>r.ecGap)),...bh.map((_,j)=>r2(sumR(rows,r=>j<PGB.length?r.b[j]:r.nd)))]);
+  const pl=[["Depot","Item Code","Item Name","Channel","PO Date","PO age (days)","Age bucket","PO qty","Covered by stock","PO gap"],...P.lines.filter(l=>l.q>0).map(l=>[l.dep,it.code[l.i],it.name[l.i],l.ch,l.date?dmy(l.date):"No date",l.age==null?"No date":l.age,l.age==null?"No PO date":PGB.find(x=>l.age<=x[1])[0],r2(l.q),r2(l.fill),r2(l.g)])];
+  save(`PO age gap ${stamp()}.xlsx`,[["PO gap by location",w],["Detail by depot",d],["Depot summary",s],["PO lines",pl]])}
+
 function depotBook(U,cols,vals,detHead,detRow,sumHead,sumRow){const it=S.wD.items,items=new Set();U.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
   const list=[...items].sort((a,b)=>String(it.code[a]).localeCompare(String(it.code[b]),undefined,{numeric:true}));
   const wide=[["","","","","",...U.flatMap(u=>cols.map(()=>u.name))],["Item Code","Item Name","Category","Sub-Category","POC",...U.flatMap(()=>cols)],
@@ -2038,6 +2073,7 @@ function viewReports(){
   if(S.rep.view==="enp")return viewEcomNoPO();
   if(S.rep.view==="mtl")return viewLow("mtl");
   if(S.rep.view==="gal")return viewLow("gal");
+  if(S.rep.view==="pogap")return viewPoGap();
   if(S.rep.view==="oc")return viewOC();
   if(S.rep.view==="fa")return viewFA();
   const F=S.fvsCache||(S.fvsCache=Core.fvs(R)),it=S.wD.items,rp=S.rep,gone=monthGone(),hasSale=!!S.meta.get("sale");
@@ -2081,7 +2117,7 @@ function viewHistory(){
 }
 const KLABEL=k=>k==="send"?"Report sent":(Core.KINDS[k]||{label:k}).label;
 const sendHidden=k=>{const h=repHidden();return k==="fvs"?(h.has("sum")&&h.has("item")):h.has(k)};
-const REPORTS=[["orders","Depot orders, all depots"],["order1","Order for one depot"],["master","Master file"],["forecast","Forecast"],["fvs","Forecast vs sale %"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT + AVT low pick-up"],["oc","Over consumption"],["fa","Forecast accuracy"],["dash","Dashboard (sales history)"]];
+const REPORTS=[["orders","Depot orders, all depots"],["order1","Order for one depot"],["master","Master file"],["forecast","Forecast"],["fvs","Forecast vs sale %"],["cov","Coverage (GT + AVT)"],["sfall","Safety stock shortfall"],["unb","Ecom PO not billed"],["enp","Ecom stock over PO"],["mtl","MT low pick-up"],["gal","GT + AVT low pick-up"],["pogap","PO age gap"],["oc","Over consumption"],["fa","Forecast accuracy"],["dash","Dashboard (sales history)"]];
 function sendSummary(){const R=S.res,cases=R.depots.reduce((a,l)=>a+l.cases,0),cbm=R.depots.reduce((a,l)=>a+l.cbm,0),short=R.fg?R.fg.filter(x=>x.bal<0).length:null,sn=S.snd;
   if(sendHidden(sn.rep)){const f=REPORTS.find(r=>!sendHidden(r[0]));if(f)sn.rep=f[0]}
   const label=(REPORTS.find(r=>r[0]===sn.rep)||["",""])[1]+(sn.rep==="order1"?": "+(R.depots.find(d=>d.id===sn.dep)||R.depots[0]).name:"");
@@ -2116,7 +2152,7 @@ function buildReport(){const R=S.res,sn=S.snd;
   if(sn.rep==="orders")return saveOrders(R.depots.map((_,j)=>j).filter(j=>R.depots[j].cases>0));
   if(sn.rep==="order1")return saveOrders([Math.max(0,R.depots.findIndex(d=>d.id===(sn.dep||R.depots[0].id)))]);
   if(sn.rep==="master")return saveMaster();if(sn.rep==="forecast")return saveForecast();if(sn.rep==="fvs")return saveReport();
-  if(sn.rep==="cov")return saveCoverage();if(sn.rep==="sfall")return saveShortfall();if(sn.rep==="unb")return saveUnbilled();if(sn.rep==="enp")return saveEcomNoPO();if(sn.rep==="mtl")return saveLow("mtl");if(sn.rep==="gal")return saveGA();if(sn.rep==="oc")return saveOC();if(sn.rep==="fa"){if(!S.arch){ensureArch();toast("Loading. Press Send again in a moment.");return}if(!faMonths().length){toast("Upload a past forecast first.");return}return saveFA()}if(sn.rep==="dash"){if(!S.hist){ensureHist();toast("Loading the sales history. Press Send again in a moment.");return}return saveDashboard()}}
+  if(sn.rep==="cov")return saveCoverage();if(sn.rep==="sfall")return saveShortfall();if(sn.rep==="unb")return saveUnbilled();if(sn.rep==="enp")return saveEcomNoPO();if(sn.rep==="mtl")return saveLow("mtl");if(sn.rep==="gal")return saveGA();if(sn.rep==="pogap")return savePoGap();if(sn.rep==="oc")return saveOC();if(sn.rep==="fa"){if(!S.arch){ensureArch();toast("Loading. Press Send again in a moment.");return}if(!faMonths().length){toast("Upload a past forecast first.");return}return saveFA()}if(sn.rep==="dash"){if(!S.hist){ensureHist();toast("Loading the sales history. Press Send again in a moment.");return}return saveDashboard()}}
 function b64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
 function logSend(sub,n){if(!S.me)return;const a=S.activity.get(S.me)||{};Store.setMany([{col:"activity",id:S.me,data:{logins:0,uploads:0,...a,recent:[{kind:"send",file:sub,at:new Date().toISOString(),rows:n},...(a.recent||[])].slice(0,30)}}]).catch(()=>{})}
 const GMAIL_ERR={server_not_connected:"Gmail is not connected for you. Add it in claude.ai Settings → Connectors, then try again.",needs_reauth:"Your Gmail connection has expired. Reconnect Gmail in claude.ai Settings → Connectors.",
@@ -2280,6 +2316,7 @@ document.addEventListener("click",async e=>{
   else if(a==="dlenp")saveEcomNoPO();
   else if(a==="dlmtl")saveLow("mtl");
   else if(a==="dlgal")saveGA();
+  else if(a==="dlpog")savePoGap();
   else if(a==="dloc")saveOC();
   else if(a==="dlfa")saveFA();
   else if(a==="dlloss")saveLoss();
@@ -2354,6 +2391,7 @@ document.addEventListener("change",e=>{const t=e.target;
   else if(t.id==="mtld"||t.id==="gtld"||t.id==="avtld"){S.rep[t.id]=t.value;render()}
   else if(t.id==="gtlp"||t.id==="avtlp"){S.rep.galPct=+t.value;render()}
   else if(t.id==="galc"){S.rep.galc=t.value;render()}
+  else if(t.id==="pgd"){S.rep.pgd=t.value;render()}
   else if(t.id==="ocd"){S.rep.ocd=t.value;render()}
   else if(t.id==="occh"){S.rep.occh=t.value;render()}
   else if(t.id==="fad"){S.rep.fad=t.value;render()}
