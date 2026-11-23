@@ -1042,8 +1042,15 @@ function addItemInfo(sheets){if(!S.D||!S.D.items)return sheets;const info=itemIn
       const p=(k==="subcategory"&&catAt>=0?catAt:k==="category"&&clAt>=0&&clAt>c?clAt:nameAt>=0?nameAt:c)+1;
       aoa=aoa.map((row,r)=>{if(!Array.isArray(row))return row;const a=row.slice();while(a.length<p)a.push("");a.splice(p,0,r<h?"":r===h?lab:(vals[r]?vals[r][ix]:""));return a});
       if(merges)merges=merges.map(m=>({s:{...m.s,c:m.s.c>=p?m.s.c+1:m.s.c},e:{...m.e,c:m.e.c>=p?m.e.c+1:m.e.c}}))});
-    return [name,aoa,merges]})}
-function book(sheets,fill){const wb=XLSX.utils.book_new();if(fill)sheets=addItemInfo(sheets);sheets.forEach(([name,aoa,merges])=>{const ws=XLSX.utils.aoa_to_sheet(fill?zeroFill(asNum(aoa)):asNum(aoa));if(merges)ws["!merges"]=merges;XLSX.utils.book_append_sheet(wb,ws,name)});
+    return [name,aoa,merges,sh[3]]})}
+/* a "Subtotal" row above the table: Excel SUBTOTAL(9, …) for every number column, so it follows the filters */
+function withSubtotal(aoa,merges){let h=0;for(let r=0;r<Math.min(aoa.length,4);r++){const k=(aoa[r]||[]).map(Core.key);if(k.includes("itemcode")||k.includes("depot")){h=r;break}}
+  const first=h+1,last=aoa.length-1;if(last<first)return {aoa,merges,f:[]};const w=Math.max(...aoa.map(r=>(r||[]).length)),fx=[],row=new Array(w).fill("");row[0]="Subtotal (follows filters)";
+  for(let c=1;c<w;c++){let num=false,sum=0;for(let r=first;r<=last;r++){const v=(aoa[r]||[])[c];if(typeof v==="number"){num=true;sum+=v}}
+    const hk=Core.key((aoa[h]||[])[c]);if(num&&!/%/.test(String((aoa[h]||[])[c]||""))&&!["caselot","poagedays","mrp","casewgt","cbmpercase"].includes(hk)){row[c]=+sum.toFixed(3);fx.push({c,f:`SUBTOTAL(9,${XLSX.utils.encode_col(c)}${first+2}:${XLSX.utils.encode_col(c)}${last+2})`})}}
+  return {aoa:[row,...aoa],merges:merges&&merges.map(m=>({s:{...m.s,r:m.s.r+1},e:{...m.e,r:m.e.r+1}})),f:fx}}
+function book(sheets,fill){const wb=XLSX.utils.book_new();if(fill)sheets=addItemInfo(sheets);sheets.forEach(([name,aoa,merges,opt])=>{let data=fill?zeroFill(asNum(aoa)):asNum(aoa),fx=[];if(opt&&opt.subtotal){const s=withSubtotal(data,merges);data=s.aoa;merges=s.merges;fx=s.f}
+    const ws=XLSX.utils.aoa_to_sheet(data);fx.forEach(x=>{const a=XLSX.utils.encode_cell({r:0,c:x.c});ws[a]={t:"n",v:data[0][x.c],f:x.f}});if(merges)ws["!merges"]=merges;XLSX.utils.book_append_sheet(wb,ws,name)});
   return XLSX.write(wb,{type:"array",bookType:"xlsx",compression:true})}
 async function save(name,sheets){if(!window.XLSX){toast("The Excel writer did not load. Reload the page.");return}
   if(!/^Template|^Safety stock days|^Last upload/.test(name)&&S.W)name=name.replace(/\.xlsx$/,`${anyFilt()?" - "+filtLabel():""} (${UH()}).xlsx`);
@@ -1527,7 +1534,7 @@ function savePoGap(){const P=pogData(),nd=P.nodate,it=S.wD.items,bh=[...PGB.map(
     [`Stock (physical + transit)`,"Open PO (MT + Ecom)","PO gap","MT gap","Ecom gap",...bh],r=>[r2(r.st),r2(r.po),r2(r.gap),r2(r.mtGap),r2(r.ecGap),...bv(r)],
     ["Items","Stock","Open PO","PO gap","MT gap","Ecom gap",...bh],rows=>[new Set(rows.map(r=>r.i)).size,r2(sumR(rows,r=>r.st)),r2(sumR(rows,r=>r.po)),r2(sumR(rows,r=>r.gap)),r2(sumR(rows,r=>r.mtGap)),r2(sumR(rows,r=>r.ecGap)),...bh.map((_,j)=>r2(sumR(rows,r=>j<PGB.length?r.b[j]:r.nd)))]);
   const pl=[["Depot","Item Code","Item Name","Channel","PO Date","PO age (days)","Age bucket","PO qty","Covered by stock","PO gap"],...P.lines.filter(l=>l.q>0).map(l=>[l.dep,it.code[l.i],it.name[l.i],l.ch,l.date?dmy(l.date):"No date",l.age==null?"No date":l.age,l.age==null?"No PO date":PGB.find(x=>l.age<=x[1])[0],r2(l.q),r2(l.fill),r2(l.g)])];
-  save(`PO age gap ${stamp()}.xlsx`,[["PO gap by location",w],["Detail by depot",d],["Depot summary",s],["PO lines",pl]])}
+  const ST={subtotal:true};save(`PO age gap ${stamp()}.xlsx`,[["PO gap by location",w,null,ST],["Detail by depot",d,null,ST],["Depot summary",s,null,ST],["PO lines",pl,null,ST]])}
 
 function depotBook(U,cols,vals,detHead,detRow,sumHead,sumRow){const it=S.wD.items,items=new Set();U.forEach(u=>u.rows.forEach(r=>items.add(r.i)));
   const list=[...items].sort((a,b)=>String(it.code[a]).localeCompare(String(it.code[b]),undefined,{numeric:true}));
